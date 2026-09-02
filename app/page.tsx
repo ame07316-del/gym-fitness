@@ -6,12 +6,16 @@ import {
   Star, Award, Zap, Play, Menu as MenuIcon,
   Calculator, Share2
 } from "lucide-react";
+import { style } from "framer-motion/client";
 // ============ DATA ============
 const STATS = [
   { icon: Users, value: 10000, label: "عضو نشط", suffix: "+" },
   { icon: Trophy, value: 200, label: "بطولة", suffix: "+" },
-  { icon: Award, value: 25, label: "مدرب محترف", suffix: "" },
-  { icon: Calendar, value: 30, label: "سنة خبرة", suffix: "" },
+  { icon: Award, value: 10, label: "مدرب محترف", suffix: "+" },
+  { icon: Calendar, value: 30, label: "سنة خبرة", suffix: "+" },
+  { icon: Calendar, value: 300, label: "ابطال اولومبيات", suffix: "+" },
+  { icon: Calendar, value: 250, label: "مشتركات", suffix: "+" },
+
 ];
 
 const TRAINERS = [
@@ -40,23 +44,24 @@ const TRAINERS = [
     clients: 320,
   },
   {
-    name: "كابتن كريم عادل",
+    name: "كابتن زهره عادل",
     specialty: "كروس فيت وMMA",
-    experience: "12 سنة",
+    experience: "2 سنة",
     image: "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=400&q=80",
-    rating: 4.9,
+    rating: 4,
     clients: 200,
   },
 ];
-
+ 
 const CLASSES = [
-  { day: "السبت", classes: [{ time: "07:00 ص", name: "يوجا صباحية", trainer: "سارة" }, { time: "06:00 م", name: "كروس فيت", trainer: "كريم" }] },
+  { day: "السبت", classes: [{ time: "07:00 ص", name: "يوجا صباحية", trainer: "سارة" }, { time: "06:00 م", name: "كروس فيت", trainer: "زهره عادل" }] },
   { day: "الأحد", classes: [{ time: "08:00 ص", name: "كارديو حارق", trainer: "محمد" }, { time: "07:00 م", name: "كمال أجسام", trainer: "أحمد" }] },
-  { day: "الاثنين", classes: [{ time: "07:00 ص", name: "بيلاتس", trainer: "سارة" }, { time: "06:00 م", name: "MMA", trainer: "كريم" }] },
+  { day: "الاثنين", classes: [{ time: "07:00 ص", name: "بيلاتس", trainer: "سارة" }, { time: "06:00 م", name: "MMA", trainer: "زهره عادل" }] },  
   { day: "الثلاثاء", classes: [{ time: "08:00 ص", name: "زومبا", trainer: "سارة" }, { time: "07:00 م", name: "قوة وتحمل", trainer: "أحمد" }] },
   { day: "الأربعاء", classes: [{ time: "07:00 ص", name: "يوجا", trainer: "سارة" }, { time: "06:00 م", name: "كارديو", trainer: "محمد" }] },
-  { day: "الخميس", classes: [{ time: "08:00 ص", name: "كروس فيت", trainer: "كريم" }, { time: "07:00 م", name: "كمال أجسام", trainer: "أحمد" }] },
+  { day: "الخميس", classes: [{ time: "08:00 ص", name: "كروس فيت", trainer: "زهره عادل" }, { time: "07:00 م", name: "كمال أجسام", trainer: "أحمد" }] },
   { day: "الجمعة", classes: [{ time: "10:00 ص", name: "دورة مكثفة", trainer: "الفريق كامل" }] },
+
 ];
 
 const PLANS = [
@@ -117,7 +122,7 @@ const GALLERY = [
 ];
 
 const TESTIMONIALS = [
-  { name: "أحمد إبراهيم", text: "خسيت 25 كيلو في 4 شهور! أفضل جيم دخلته في حياتي، الكوتشات محترفين جداً.", rating: 5, image: "https://i.pravatar.cc/100?img=12" },
+  { name: "أحمد إبراهيم", text: "خسيت 25 كيلو في 4 شهور! أفضل جيم دخلته في حياتي.", rating: 5, image: "https://i.pravatar.cc/100?img=12" },
   { name: "منى خالد", text: "المكان نظيف والأجهزة حديثة، والكابتن سارة غيرت حياتي حرفياً.", rating: 5, image: "https://i.pravatar.cc/100?img=45" },
   { name: "محمود علي", text: "بنيت عضلات محترمة في 6 شهور بفضل البرنامج التدريبي والغذائي.", rating: 5, image: "https://i.pravatar.cc/100?img=33" },
 ];
@@ -125,7 +130,7 @@ const TESTIMONIALS = [
 const FAQS = [
   { q: "ما هي مواعيد عمل الجيم؟", a: "الجيم مفتوح من 6 صباحاً حتى 12 منتصف الليل يومياً، وأيام الجمعة من 10 صباحاً." },
   { q: "هل يوجد كوتش نساء؟", a: "نعم، لدينا فريق من الكوتشات النساء المحترفات في جميع التخصصات." },
-  { q: "هل يمكنني تجميد الاشتراك؟", a: "نعم، يمكن تجميد الاشتراك حتى 30 يوم في السنة مجاناً." },
+  { q: "هل يمكنني تجميد الاشتراك؟", a: " لا,لا يمكنك تجميد الاشتراك "  },
   { q: "ما هي طرق الدفع المتاحة؟", a: "نقبل الدفع النقدي، الفيزا، فودافون كاش، إنستا باي، وجميع المحافظ الإلكترونية." },
   { q: "هل يوجد جلسة تجريبية مجانية؟", a: "نعم! نقدم جلسة تجريبية مجانية لأول مرة لجميع الأعضاء الجدد." },
 ];
@@ -266,7 +271,7 @@ const handleBookingSubmit = async (e: React.FormEvent) => {
       const result = await response.json();
 
       if (response.ok) {
-        alert("✅ تم إرسال حجزك بنجاح وتسجيله في لوحة التحكم!");
+        alert("✅تم استلام حجزك بنجاح شكرا لك");
         setBookingForm({ name: "", phone: "", goal: "تخسيس" });
       } else {
         console.error("Laravel Validation Error:", result);
@@ -274,7 +279,7 @@ const handleBookingSubmit = async (e: React.FormEvent) => {
       }
     } catch (error) {
       console.error("Network Error:", error);
-      alert("❌ تعذر الاتصال بالسيرفر، تأكد أن لارافيل شغال.");
+      alert("❌ تعذر الاتصال بالسيرفر");
     }
   };
   const filteredGallery = galleryFilter === "all" ? GALLERY : GALLERY.filter(g => g.category === galleryFilter);
@@ -707,9 +712,11 @@ const handleBookingSubmit = async (e: React.FormEvent) => {
                 <option>لياقة عامة وصحة</option>
                 <option>تنشيف وتقسيم</option>
                 <option>تأهيل بعد إصابة</option>
+                <option> تجهيز لبطوله</option>
+                <option>استشاره</option>
               </select>
               <button onClick={sendBookingWhatsApp} className="w-full bg-red-600 hover:bg-red-500 py-4 rounded-xl font-black text-lg transition glow flex items-center justify-center gap-2">
-                <Phone className="w-5 h-5" /> احجز الآن عبر واتساب
+                <Phone className="w-5 h-5" /> احجز الان
               </button>
             </div>
           </div>
@@ -745,14 +752,14 @@ const handleBookingSubmit = async (e: React.FormEvent) => {
               <li className="flex items-center gap-2"><MapPin className="w-4 h-4" /> شارع التحرير، القاهرة</li>
             </ul>
           </div>
-          <div>
+          {/* <div>
             <h4 className="font-bold mb-4">تابعنا</h4>
             <div className="flex gap-3">
               <a href="#" className="bg-neutral-900 hover:bg-red-600 p-3 rounded-lg transition"><Share2 className="w-5 h-5" /></a>
               <a href="#" className="bg-neutral-900 hover:bg-red-600 p-3 rounded-lg transition"><Phone className="w-5 h-5" /></a>
               <a href="#" className="bg-neutral-900 hover:bg-red-600 p-3 rounded-lg transition"><Mail className="w-5 h-5" /></a>
             </div>
-          </div>
+          </div> */}
         </div>
         <div className="max-w-7xl mx-auto mt-10 pt-6 border-t border-neutral-900 text-center text-neutral-500 text-sm">
           © 2026 FitZone Pro. جميع الحقوق محفوظة.
