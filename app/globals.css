@@ -1,40 +1,218 @@
 @import "tailwindcss";
 
-* {
+@theme {
+  --color-ink: #07070a;
+  --color-ink-2: #0d0d12;
+  --color-surface: #121218;
+  --color-surface-2: #191922;
+  --color-line: #26262f;
+  --color-brand: #e11d2e;
+  --color-brand-soft: #f43f4f;
+  --color-brand-dark: #9f1120;
+  --color-gold: #f5b629;
+  --color-mint: #2fd48a;
+  --font-sans: "Cairo", ui-sans-serif, system-ui, "Segoe UI", Tahoma, sans-serif;
+  --shadow-glow: 0 0 0 1px rgba(225, 29, 46, 0.35), 0 18px 60px -20px rgba(225, 29, 46, 0.55);
+}
+
+/* ---------- base ---------- */
+html {
   scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  background: #0a0a0a;
+  background: var(--color-ink);
+  color: #f5f5f7;
+  font-family: var(--font-sans);
+  overflow-wrap: break-word;
+  text-rendering: optimizeLegibility;
+}
+
+section[id],
+footer[id] {
+  scroll-margin-top: 92px;
+}
+
+::selection {
+  background: var(--color-brand);
   color: #fff;
-  font-family: system-ui, -apple-system, sans-serif;
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 9px;
+  height: 9px;
 }
 ::-webkit-scrollbar-track {
-  background: #0a0a0a;
+  background: #0a0a0d;
 }
 ::-webkit-scrollbar-thumb {
-  background: #dc2626;
+  background: linear-gradient(var(--color-brand), var(--color-brand-dark));
   border-radius: 10px;
 }
 
+.no-bar {
+  scrollbar-width: none;
+}
+.no-bar::-webkit-scrollbar {
+  display: none;
+}
+
+/* الرقم والإنجليزي يبان مضبوط جوه نص عربي */
+.num {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+}
+
+.glass {
+  background: linear-gradient(160deg, rgba(28, 28, 36, 0.86), rgba(12, 12, 16, 0.82));
+  backdrop-filter: blur(14px);
+}
+
+.card-hover {
+  transition:
+    transform 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.35s ease,
+    box-shadow 0.35s ease;
+}
+.card-hover:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 30px 60px -35px rgba(225, 29, 46, 0.65);
+}
+
+.grid-noise {
+  background-image:
+    linear-gradient(to left, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 46px 46px;
+}
+
+/* ---------- keyframes ---------- */
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(220, 38, 38, 0.6); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(225, 29, 46, 0.55), 0 0 26px rgba(225, 29, 46, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(225, 29, 46, 0), 0 0 44px rgba(225, 29, 46, 0.6);
+  }
 }
-
 .glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+  animation: pulse-glow 2.4s ease-in-out infinite;
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
 }
-
 .float-anim {
-  animation: float 3s ease-in-out infinite;
+  animation: float-y 5s ease-in-out infinite;
+}
+
+@keyframes marquee-rtl {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-track {
+  animation: marquee-rtl 26s linear infinite;
+}
+.marquee-wrap:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes sheen {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(320%) skewX(-18deg);
+  }
+}
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  animation: sheen 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes live-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(1.45);
+  }
+}
+.live-dot {
+  animation: live-dot 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow,
+  .float-anim,
+  .marquee-track,
+  .sheen::after,
+  .live-dot {
+    animation: none !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* ---------- range inputs ---------- */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: #24242e;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  border: 3px solid #fff;
+  cursor: grab;
+  box-shadow: 0 0 0 4px rgba(225, 29, 46, 0.25);
+}
+input[type="range"]::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.1);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  border: 3px solid #fff;
+  cursor: grab;
+}
+
+/* حقول الـ select الرقمية في المتصفحات المظلمة */
+option {
+  background: #121218;
+  color: #fff;
 }
