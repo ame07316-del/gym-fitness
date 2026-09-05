@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: typecheck + lint + tests + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # next build بينادي git rev-parse — من غير السطر ده الـ runner بيرجع exit 128
+      # بسبب "dubious ownership" على الملفات
+      - name: Allow git in CI workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: tsc --noEmit
+        run: npm run typecheck
+
+      - name: eslint
+        run: npm run lint
+
+      - name: vitest (pricing engine + card rules + API contract)
+        run: npm test
+
+      - name: next build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
