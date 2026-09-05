@@ -22,8 +22,14 @@
    (أو **Preview Only: System Bypass** لو عايز البريفيو محمي والـ production مفتوح).
 3. احفظ، وافتح الرابط في **Incognito** تتأكد إن حد تاني بيشوفه فعلًا.
 
-الأنضج للمشروع الحي: ادمج البرانتش على `main` → الـ **Production** deployment بيطلع
-بروكس الحماية مقفولة افتراضيًا، والرابط بيكون أقصر وأنضف.
+> ⚠️ **اتقاس فعليًا على المشروع ده**: الحماية شغّالة على **Preview و Production اتنين** —
+> يعني بعد الدمج الرابط `https://gym-fitness-ame07316-5868s-projects.vercel.app` بيرجع
+> «Protected Deployment – Log in to Vercel» لأي زائر. لازم الـ toggle تحت، مرة واحدة للمشروع كله.
+> بعد ما تقفله، اختبر من تليفون تاني أو Incognito — متكتفيش إنك شفته من حسابك.
+
+### الرابط ده هو الـ Production alias بتاع المشروع
+`https://gym-fitness-ame07316-5868s-projects.vercel.app` — لو عايزه أقصر، من
+Project ← Settings ← Domains اربط `fitzone-pro.vercel.app` أو `www.fitzone-pro.com`.
 
 ## 2) لو عايز رابط ثابت (الأحلى في السيرة الذاتية)
 

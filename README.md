@@ -16,7 +16,7 @@
 
 | | |
 | --- | --- |
-| 🌍 **Live demo** | `_حط اللينك هنا بعد الـ deploy — docs/DEPLOY-VERCEL.md_` |
+| 🌍 **Live demo** | <https://gym-fitness-ame07316-5868s-projects.vercel.app> · لو طلب login اعمل [خطوة 1.5](docs/DEPLOY-VERCEL.md) |
 | 🎬 **Walkthrough (90 ثانية)** | `_لينك Loom/YouTube_` |
 | 📄 **عقد الباك إند** | [`docs/BACKEND-CONTRACT.md`](docs/BACKEND-CONTRACT.md) |
 | ⚖️ **الرخصة** | All rights reserved — details in [LICENSE](LICENSE) |
