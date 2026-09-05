@@ -19,6 +19,8 @@ export type PayResult = {
   amount: number;
 };
 
+import { apiFetch, ENDPOINTS, HAS_EXTERNAL_BACKEND } from "./api";
+
 export const PROVIDER = process.env.NEXT_PUBLIC_PAYMENT_PROVIDER ?? "sandbox";
 export const IS_SANDBOX = PROVIDER === "sandbox" || !process.env.NEXT_PUBLIC_PAYMENT_SECRET;
 
@@ -119,33 +121,22 @@ export async function authorize(input: {
   description?: string;
 }): Promise<PayResult> {
   const local = simulate(input);
-  try {
-    const res = await fetch("/api/pay", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...input, provider: PROVIDER }),
-    });
-    const json = (await res.json()) as PayResult;
-    // 200 = مقبول / 402 = البنك رفض — الاتنين رسالة البنك فيها القرار
-    if (res.ok || res.status === 402) return { ...json, provider: json.provider ?? PROVIDER };
-  } catch {
-    /* offline / dev server restart — نكمّل بالمحاكاة المحلية */
-  }
+  const res = await apiFetch<PayResult>(ENDPOINTS.pay, {
+    method: "POST",
+    body: { ...input, provider: PROVIDER },
+  });
+  // 200 = مقبول · 402 = البنك رفض — الاتنين قرار البنك في الرسالة
+  if (res.ok || res.status === 402) return { ...(res.data as PayResult), provider: res.data?.provider ?? PROVIDER };
+  if (HAS_EXTERNAL_BACKEND) return { ...local, message: res.error ?? local.message };
   return local;
 }
 
 /** تأكيد 3-D Secure (الـ OTP) */
 export async function confirmPayment(reference: string, code: string): Promise<PayResult> {
-  try {
-    const res = await fetch("/api/pay/confirm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reference, code }),
-    });
-    const json = (await res.json()) as PayResult;
-    if (res.ok || res.status === 401 || res.status === 404) return json;
-  } catch {
-    /* fallback محلي */
+  const res = await apiFetch<PayResult>(ENDPOINTS.payConfirm, { method: "POST", body: { reference, code } });
+  if (res.ok || res.status === 401 || res.status === 404) {
+    if (res.data) return res.data;
+    return { ok: res.ok, status: res.ok ? "succeeded" : "failed", reference, provider: PROVIDER, message: res.error ?? "تم", amount: 0 };
   }
   const ok = /^\d{6}$/.test(code) && code !== "000000";
   return {

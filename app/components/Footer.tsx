@@ -155,7 +155,7 @@ export default function Footer() {
                     err ? "border-brand/70" : "border-line focus:border-brand/70",
                   )}
                 />
-                <motion.button whileTap={{ scale: 0.94 }} type="submit" className="shrink-0 rounded-xl bg-brand px-4 text-sm font-black transition hover:bg-brand-soft">
+                <motion.button suppressHydrationWarning whileTap={{ scale: 0.94 }} type="submit" className="shrink-0 rounded-xl bg-brand px-4 text-sm font-black transition hover:bg-brand-soft">
                   اشترك
                 </motion.button>
               </div>
@@ -195,7 +195,7 @@ export function FloatingActions() {
   return (
     <>
       {/* زر واتساب عائم */}
-      <motion.a
+      <motion.a suppressHydrationWarning
         href={`https://wa.me/${GYM.whatsapp}?text=${encodeURIComponent("عايز أستفسر عن الاشتراكات 🏋️")}`}
         target="_blank"
         rel="noopener noreferrer"
@@ -213,7 +213,7 @@ export function FloatingActions() {
       </motion.a>
 
       {/* زر العودة للأعلى */}
-      <motion.button
+      <motion.button suppressHydrationWarning
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         aria-label="ارجع لفوق"
         initial={{ scale: 0, opacity: 0 }}
@@ -227,7 +227,7 @@ export function FloatingActions() {
 
       {/* شريط الاشتراك العائم للموبايل */}
       {!hasMembership && (
-        <motion.div
+        <motion.div suppressHydrationWarning
           initial={{ y: 80 }}
           animate={{ y: show ? 0 : 80 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}

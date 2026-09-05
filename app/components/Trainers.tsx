@@ -50,7 +50,7 @@ export default function Trainers() {
           </button>
         </Reveal>
 
-        <motion.div layout className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <motion.div suppressHydrationWarning layout className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {list.length === 0 ? (
             <p className="col-span-full rounded-2xl border border-dashed border-line p-8 text-center text-sm text-white/45">
               لسه ما عملتش مفضّلين — اضغط على القلب في أي كوتش.
@@ -58,14 +58,14 @@ export default function Trainers() {
           ) : (
             list.map((t, i) => (
               <Reveal key={t.id} delay={i * 0.07}>
-                <motion.article
+                <motion.article suppressHydrationWarning
                   layout
                   whileHover="hover"
                   onClick={() => setOpenTrainer(t)}
                   className="group relative h-full cursor-pointer overflow-hidden rounded-3xl border border-line bg-surface/60 transition hover:border-brand/45"
                 >
                   <div className="relative aspect-[4/5] overflow-hidden">
-                    <motion.div
+                    <motion.div suppressHydrationWarning
                       className="absolute inset-0"
                       variants={{ hover: { scale: 1.08 } }}
                       transition={{ type: "spring", stiffness: 220, damping: 26 }}
@@ -174,7 +174,7 @@ export default function Trainers() {
                       <span className="num text-white/45">{s.value}٪</span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-white/8">
-                      <motion.div
+                      <motion.div suppressHydrationWarning
                         className="h-full rounded-full bg-gradient-to-l from-brand to-brand-soft"
                         initial={{ width: 0 }}
                         animate={{ width: `${s.value}%` }}

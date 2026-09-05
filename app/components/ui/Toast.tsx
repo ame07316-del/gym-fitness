@@ -45,7 +45,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           {items.map((t) => {
             const m = META[t.kind];
             return (
-              <motion.div
+              <motion.div suppressHydrationWarning
                 key={t.id}
                 layout
                 initial={{ opacity: 0, y: 26, scale: 0.94 }}

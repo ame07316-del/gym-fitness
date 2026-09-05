@@ -162,8 +162,8 @@ export default function Booking() {
             <div className="relative overflow-hidden rounded-3xl border border-line bg-surface/60 p-6 backdrop-blur sm:p-8">
               <AnimatePresence mode="wait">
                 {done ? (
-                  <motion.div key="done" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="py-6 text-center">
-                    <motion.span initial={{ scale: 0.5 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 16 }} className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-mint/15 text-mint">
+                  <motion.div suppressHydrationWarning key="done" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="py-6 text-center">
+                    <motion.span suppressHydrationWarning initial={{ scale: 0.5 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 16 }} className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-mint/15 text-mint">
                       <CircleCheck className="h-8 w-8" />
                     </motion.span>
                     <h3 className="mt-4 text-2xl font-black">طلبك وصل يا بطل 💪</h3>
@@ -184,7 +184,7 @@ export default function Booking() {
                     </div>
                   </motion.div>
                 ) : (
-                  <motion.form key="form" onSubmit={submit} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: -12 }} className="space-y-5">
+                  <motion.form suppressHydrationWarning key="form" onSubmit={submit} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: -12 }} className="space-y-5">
                     <div className="flex items-center justify-between">
                       <h3 className="text-xl font-black">احجز الجلسة المجانية</h3>
                       <span className="num rounded-lg border border-line bg-white/5 px-2 py-1 text-[10px] text-white/45">
@@ -329,7 +329,7 @@ function Field({
       {children}
       <AnimatePresence>
         {error && (
-          <motion.span initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-1 block text-[11px] font-bold text-brand-soft">
+          <motion.span suppressHydrationWarning initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-1 block text-[11px] font-bold text-brand-soft">
             {error}
           </motion.span>
         )}

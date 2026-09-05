@@ -77,7 +77,7 @@ export default function Pricing() {
                 )}
               >
                 {draft.cycle === c.id && (
-                  <motion.span
+                  <motion.span suppressHydrationWarning
                     layoutId="cycle-pill"
                     className="absolute inset-0 -z-10 rounded-xl bg-brand"
                     transition={{ type: "spring", stiffness: 380, damping: 32 }}
@@ -104,7 +104,7 @@ export default function Pricing() {
             const p = priceOf[plan.id];
             return (
               <Reveal key={plan.id} delay={i * 0.08}>
-                <motion.div
+                <motion.div suppressHydrationWarning
                   onClick={() => setDraft((d) => ({ ...d, planId: plan.id }))}
                   whileHover={{ y: -6 }}
                   transition={{ type: "spring", stiffness: 300, damping: 24 }}
@@ -158,7 +158,7 @@ export default function Pricing() {
 
                   <div className="relative mt-6 min-h-[86px]">
                     <AnimatePresence mode="popLayout" initial={false}>
-                      <motion.div
+                      <motion.div suppressHydrationWarning
                         key={draft.cycle + plan.id}
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -299,7 +299,7 @@ export default function Pricing() {
               </div>
               <AnimatePresence initial={false}>
                 {showCoupons && (
-                  <motion.ul
+                  <motion.ul suppressHydrationWarning
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}

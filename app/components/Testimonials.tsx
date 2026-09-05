@@ -45,7 +45,7 @@ export default function Testimonials() {
 
           <div className="overflow-hidden">
             <AnimatePresence mode="wait">
-              <motion.article
+              <motion.article suppressHydrationWarning
                 key={i}
                 drag="x"
                 style={{ x }}
@@ -107,7 +107,7 @@ export default function Testimonials() {
                 >
                   <span className={cx("h-full rounded-full transition-all duration-300", d === i ? "bg-brand" : "bg-transparent group-hover:bg-white/25")} />
                   {d === i && playing && (
-                    <motion.span
+                    <motion.span suppressHydrationWarning
                       className="absolute inset-y-0 right-0 bg-brand/60"
                       initial={{ width: "0%" }}
                       animate={{ width: "100%" }}
@@ -122,10 +122,10 @@ export default function Testimonials() {
               <button onClick={() => setPlaying((p) => !p)} aria-label={playing ? "إيقاف العرض" : "تشغيل العرض"} className="rounded-xl border border-line bg-white/5 p-2 text-white/55 transition hover:text-white">
                 {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               </button>
-              <motion.button onClick={() => go(-1)} aria-label="السابق" style={{ opacity: arrow }} className="rounded-xl border border-line bg-white/5 p-2 text-white/55 transition hover:border-brand/50 hover:text-white">
+              <motion.button suppressHydrationWarning onClick={() => go(-1)} aria-label="السابق" style={{ opacity: arrow }} className="rounded-xl border border-line bg-white/5 p-2 text-white/55 transition hover:border-brand/50 hover:text-white">
                 <ChevronRight className="h-4 w-4" />
               </motion.button>
-              <motion.button onClick={() => go(1)} aria-label="التالي" style={{ opacity: arrow }} className="rounded-xl border border-line bg-white/5 p-2 text-white/55 transition hover:border-brand/50 hover:text-white">
+              <motion.button suppressHydrationWarning onClick={() => go(1)} aria-label="التالي" style={{ opacity: arrow }} className="rounded-xl border border-line bg-white/5 p-2 text-white/55 transition hover:border-brand/50 hover:text-white">
                 <ChevronLeft className="h-4 w-4" />
               </motion.button>
             </div>
@@ -144,7 +144,7 @@ export default function Testimonials() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {REVIEWS.map((r, idx) => (
-              <motion.figure
+              <motion.figure suppressHydrationWarning
                 key={r.name + r.when}
                 initial={{ opacity: 0, y: 18 }}
                 whileInView={{ opacity: 1, y: 0 }}

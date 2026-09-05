@@ -51,7 +51,7 @@ export default function Tools() {
 
         <div className="rounded-3xl border border-line bg-surface/45 p-5 sm:p-7">
           <AnimatePresence mode="wait">
-            <motion.div
+            <motion.div suppressHydrationWarning
               key={tab}
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
@@ -122,7 +122,7 @@ function Bmi() {
         <div className="rounded-2xl border border-line bg-ink/60 p-4">
           <p className="mb-3 text-xs font-bold text-white/50">مؤشر BMI على المقياس العالمي</p>
           <div className="relative h-3 overflow-hidden rounded-full bg-gradient-to-l from-blue-400 via-mint via-30% to-brand">
-            <motion.span
+            <motion.span suppressHydrationWarning
               className="absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border-[3px] border-white bg-ink shadow-lg"
               animate={{ insetInlineStart: `calc(${pos}% - 12px)` }}
               transition={{ type: "spring", stiffness: 240, damping: 26 }}
@@ -142,7 +142,7 @@ function Bmi() {
         <div>
           <p className="text-xs font-bold text-white/45">النتيجة</p>
           <div className="mt-1 flex items-end gap-3">
-            <motion.span key={bmi.toFixed(1)} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="num text-6xl font-black leading-none" style={{ color: cat.color }}>
+            <motion.span suppressHydrationWarning key={bmi.toFixed(1)} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="num text-6xl font-black leading-none" style={{ color: cat.color }}>
               {bmi.toFixed(1)}
             </motion.span>
             <span className="mb-1 rounded-lg px-2.5 py-1 text-xs font-black" style={{ background: `${cat.color}22`, color: cat.color }}>
@@ -374,7 +374,7 @@ function OneRepMax() {
         <Slider label="عدد التكرارات" value={reps} onChange={setReps} min={1} max={15} unit="×" />
         <div className="rounded-2xl border border-brand/30 bg-brand/[.07] p-5 text-center">
           <p className="text-xs font-bold text-white/50">أقصى وزن لتكرار واحد (Epley)</p>
-          <motion.p key={Math.round(orm)} initial={{ scale: 0.9, opacity: 0.6 }} animate={{ scale: 1, opacity: 1 }} className="num mt-1 text-5xl font-black text-brand-soft">
+          <motion.p suppressHydrationWarning key={Math.round(orm)} initial={{ scale: 0.9, opacity: 0.6 }} animate={{ scale: 1, opacity: 1 }} className="num mt-1 text-5xl font-black text-brand-soft">
             {orm.toFixed(1)}
           </motion.p>
           <p className="mt-1 text-[11px] text-white/40">كجم · تمرين سكوات / بنش / ديدليفت</p>
@@ -467,12 +467,12 @@ function Water() {
 
 function Cup({ on }: { on: boolean }) {
   return (
-    <motion.span
+    <motion.span suppressHydrationWarning
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       className={cx("grid h-9 w-7 place-items-end overflow-hidden rounded-b-lg rounded-t-sm border transition", on ? "border-brand/50" : "border-line")}
     >
-      <motion.span
+      <motion.span suppressHydrationWarning
         className={cx("w-full", on ? "bg-brand/60" : "bg-transparent")}
         animate={{ height: on ? ["0%", "72%"] : "0%" }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}

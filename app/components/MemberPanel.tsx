@@ -74,7 +74,7 @@ export default function MemberPanel() {
             )}
           >
             {tab === t.id && (
-              <motion.span layoutId="member-tab" className="absolute inset-0 -z-10 rounded-xl bg-brand" transition={{ type: "spring", stiffness: 380, damping: 32 }} />
+              <motion.span suppressHydrationWarning layoutId="member-tab" className="absolute inset-0 -z-10 rounded-xl bg-brand" transition={{ type: "spring", stiffness: 380, damping: 32 }} />
             )}
             <t.icon className="h-4 w-4" />
             <span className="hidden sm:inline">{t.label}</span>
@@ -145,7 +145,7 @@ export default function MemberPanel() {
                 <span className="num">{Math.round(progress * 100)}٪ مستهلك</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                <motion.div
+                <motion.div suppressHydrationWarning
                   className={cx("h-full rounded-full", daysLeft < 7 ? "bg-gold" : "bg-brand")}
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.round(progress * 100)}%` }}

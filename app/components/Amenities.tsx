@@ -28,7 +28,7 @@ export default function Amenities() {
 
         <div className="no-bar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 md:grid md:grid-cols-4 md:overflow-visible md:px-0 xl:grid-cols-7">
           {ITEMS.map((it, i) => (
-            <motion.div
+            <motion.div suppressHydrationWarning
               key={it.title}
               initial={{ opacity: 0, y: 18 }}
               whileInView={{ opacity: 1, y: 0 }}

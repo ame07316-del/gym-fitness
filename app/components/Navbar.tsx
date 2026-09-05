@@ -54,7 +54,7 @@ export default function Navbar() {
 
   return (
     <>
-      <motion.div
+      <motion.div suppressHydrationWarning
         className="fixed inset-x-0 top-0 z-[60] h-[3px] origin-right bg-gradient-to-l from-brand via-brand-soft to-gold"
         style={{ scaleX: bar }}
         aria-hidden
@@ -87,7 +87,7 @@ export default function Navbar() {
               >
                 {n.label}
                 {active === n.id && (
-                  <motion.span
+                  <motion.span suppressHydrationWarning
                     layoutId="nav-active"
                     className="absolute inset-x-2 -bottom-0.5 h-[3px] rounded-full bg-brand"
                     transition={{ type: "spring", stiffness: 420, damping: 34 }}
@@ -139,7 +139,7 @@ export default function Navbar() {
 
         <AnimatePresence initial={false}>
           {open && (
-            <motion.div
+            <motion.div suppressHydrationWarning
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -148,7 +148,7 @@ export default function Navbar() {
             >
               <div className="glass mx-3 mb-3 mt-2 rounded-2xl border border-line p-2">
                 {NAV.map((n, i) => (
-                  <motion.button
+                  <motion.button suppressHydrationWarning
                     key={n.id}
                     initial={{ opacity: 0, x: 16 }}
                     animate={{ opacity: 1, x: 0 }}

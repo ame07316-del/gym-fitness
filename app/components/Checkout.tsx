@@ -265,7 +265,7 @@ export default function Checkout() {
       )}
 
       <AnimatePresence mode="wait">
-        <motion.div
+        <motion.div suppressHydrationWarning
           key={step}
           initial={{ opacity: 0, x: 24 }}
           animate={{ opacity: 1, x: 0 }}
@@ -609,7 +609,7 @@ export default function Checkout() {
 
         {/* 3-D Secure */}
         {payPhase === "otp" && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-gold/40 bg-gold/[.07] p-4">
+          <motion.div suppressHydrationWarning initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-gold/40 bg-gold/[.07] p-4">
             <div className="mb-2 flex items-center gap-2 text-xs font-black text-gold">
               <Lock className="h-4 w-4" /> تحقق البنك الإضافي (3-D Secure)
             </div>
@@ -645,7 +645,7 @@ export default function Checkout() {
 
         {/* فشل / رسالة العملية */}
         {(payPhase === "failed" || errors.pay) && (
-          <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="flex items-start gap-2 rounded-xl border border-brand/40 bg-brand/10 px-3.5 py-2.5 text-xs font-bold text-brand-soft">
+          <motion.p suppressHydrationWarning initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="flex items-start gap-2 rounded-xl border border-brand/40 bg-brand/10 px-3.5 py-2.5 text-xs font-bold text-brand-soft">
             <X className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {payMsg || errors.pay}
           </motion.p>
         )}
@@ -665,7 +665,7 @@ export default function Checkout() {
     const grid = cardPattern(orderId, 7);
     return (
       <div className="space-y-4 text-center">
-        <motion.div
+        <motion.div suppressHydrationWarning
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 260, damping: 18 }}

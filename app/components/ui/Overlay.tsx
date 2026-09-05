@@ -44,7 +44,7 @@ export function Modal({
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
+        <motion.div suppressHydrationWarning
           className="fixed inset-0 z-[110] flex items-end justify-center p-0 sm:items-center sm:p-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -54,14 +54,14 @@ export function Modal({
           aria-modal="true"
           aria-label={typeof title === "string" ? title : "نافذة"}
         >
-          <motion.div
+          <motion.div suppressHydrationWarning
             className="absolute inset-0 bg-black/78 backdrop-blur-sm"
             onClick={onClose}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           />
-          <motion.div
+          <motion.div suppressHydrationWarning
             initial={{ opacity: 0, y: 44, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.98 }}
@@ -121,9 +121,9 @@ export function Drawer({
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="fixed inset-0 z-[112]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <motion.div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-          <motion.aside
+        <motion.div suppressHydrationWarning className="fixed inset-0 z-[112]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.div suppressHydrationWarning className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+          <motion.aside suppressHydrationWarning
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}

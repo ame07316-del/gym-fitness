@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useMemo, useState } from
 import { useClock, useHydrated, usePersistentState } from "./storage";
 import { addMonths, quoteOf, type Draft, type Membership } from "./subscription";
 import { FREEZE_DAYS_LIMIT } from "./data";
+import { apiFetch, ENDPOINTS } from "./api";
 import { daysBetween, uid } from "./utils";
 import { useToast } from "@/app/components/ui/Toast";
 
@@ -130,19 +131,15 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
         frozenAt: null,
         frozenDaysUsed: 0,
       };
-      try {
-        const res = await fetch("/api/subscribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(rec),
-        });
-        if (!res.ok) throw new Error("bad status");
-      } catch {
+      const res = await apiFetch<{ order?: { orderId?: string }; invoice?: string }>(ENDPOINTS.subscribe, { method: "POST", body: rec });
+      if (!res.ok) {
         toast({
           kind: "warn",
           title: "الاشتراك اتسجّل على جهازك",
-          body: " السيرفر مش متاح دلوقتي — بياناتك محفوظة ومحفوظ لك مرجع الطلب.",
+          body: res.error ? `${res.error} — بياناتك محفوظة ومعاهالك مرجع الطلب ${rec.orderId}.` : "الباك إند مش متاح دلوقتي.",
         });
+      } else if (res.data?.invoice) {
+        toast({ kind: "info", title: `فاتورة ${res.data.invoice}`, body: "هنبعتهالك على الواتساب بعد تأكيد الدفع." });
       }
       setMembership(rec);
       setHistory((h) => [rec, ...h].slice(0, 12));
@@ -233,24 +230,15 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
   const addBooking: Ctx["addBooking"] = useCallback(
     async (b) => {
       const rec: Booking = { ...b, id: uid("BK"), createdAt: Date.now(), status: "pending" };
-      try {
-        const res = await fetch("/api/bookings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(rec),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err?.error ?? "فشل الإرسال");
-        }
+      const res = await apiFetch<{ booking?: { id?: string }; message?: string }>(ENDPOINTS.bookings, { method: "POST", body: rec });
+      if (res.ok) {
         rec.status = "confirmed";
-      } catch (e) {
+      } else {
         toast({
           kind: "warn",
-          title: "استلمنا طلبك على جهازك",
-          body: "مش قادر نوصل السيرفر دلوقتي — هنبعتلك على الواتساب للتأكيد.",
+          title: "طلبك اتسجّل على جهازك",
+          body: res.error ?? "الباك إند مش متاح — هنتابع معاك على الواتساب.",
         });
-        console.error(e);
       }
       setBookings((s) => [rec, ...s].slice(0, 20));
       toast({ kind: "success", title: "تم إرسال طلب الحجز ✅", body: `الكود: ${rec.id}` });

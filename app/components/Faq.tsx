@@ -77,7 +77,7 @@ export default function Faq() {
                     </button>
                     <AnimatePresence initial={false}>
                       {isOpen && (
-                        <motion.div
+                        <motion.div suppressHydrationWarning
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: "auto", opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}

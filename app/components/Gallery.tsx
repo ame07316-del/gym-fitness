@@ -70,10 +70,10 @@ export default function Gallery() {
           })}
         </Reveal>
 
-        <motion.div layout className="grid auto-rows-[170px] grid-cols-2 gap-3 sm:auto-rows-[215px] md:grid-cols-4">
+        <motion.div suppressHydrationWarning layout className="grid auto-rows-[170px] grid-cols-2 gap-3 sm:auto-rows-[215px] md:grid-cols-4">
           <AnimatePresence mode="popLayout">
             {shots.map((s, i) => (
-              <motion.button
+              <motion.button suppressHydrationWarning
                 layout
                 key={s.title}
                 initial={{ opacity: 0, scale: 0.92 }}
@@ -110,7 +110,7 @@ export default function Gallery() {
       {/* ---------- Lightbox ---------- */}
       <AnimatePresence>
         {lightbox !== null && shots[lightbox] && (
-          <motion.div
+          <motion.div suppressHydrationWarning
             className="fixed inset-0 z-[115] flex flex-col bg-black/93 backdrop-blur-md"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -133,7 +133,7 @@ export default function Gallery() {
             </div>
 
             <div className="relative flex-1 px-3 pb-4 sm:px-16">
-              <motion.div
+              <motion.div suppressHydrationWarning
                 key={lightbox}
                 drag="x"
                 dragConstraints={{ left: 0, right: 0 }}
@@ -247,7 +247,7 @@ function TransformSlider() {
 
         <div className="pointer-events-none absolute inset-y-0 z-10 w-px bg-white/80" style={{ right: `${pct}%` }}>
           <span className="absolute inset-y-0 -right-px w-px bg-brand/70 blur-[2px]" />
-          <motion.span
+          <motion.span suppressHydrationWarning
             animate={touched ? { x: 0 } : { x: [0, -7, 7, 0] }}
             transition={touched ? { duration: 0.2 } : { duration: 2.4, repeat: Infinity, repeatDelay: 1.2 }}
             className="absolute top-1/2 grid h-11 w-11 -translate-y-1/2 translate-x-1/2 place-items-center rounded-full border-2 border-white bg-brand text-white shadow-xl"
@@ -255,7 +255,7 @@ function TransformSlider() {
             <GripVertical className="h-4 w-4" />
           </motion.span>
           {!touched && (
-            <motion.span
+            <motion.span suppressHydrationWarning
               initial={{ opacity: 0 }}
               animate={{ opacity: [0, 1, 1, 0] }}
               transition={{ duration: 2.4, repeat: Infinity }}

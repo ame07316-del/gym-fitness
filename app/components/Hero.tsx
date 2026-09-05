@@ -21,8 +21,8 @@ export default function GymHero() {
   return (
     <section id="home" className="relative flex min-h-[100svh] items-center overflow-hidden pt-24 pb-24">
       {/* الخلفية */}
-      <motion.div className="absolute inset-0 -z-10" style={{ y: bgY }}>
-        <motion.div className="absolute inset-0" style={{ scale: bgScale }}>
+      <motion.div suppressHydrationWarning className="absolute inset-0 -z-10" style={{ y: bgY }}>
+        <motion.div suppressHydrationWarning className="absolute inset-0" style={{ scale: bgScale }}>
           <Image src={HERO_IMAGE} alt="الصالة الرئيسية في FitZone Pro" fill priority sizes="100vw" className="object-cover" />
         </motion.div>
         <div className="absolute inset-0 bg-gradient-to-l from-ink via-ink/85 to-ink/45" />
@@ -31,17 +31,17 @@ export default function GymHero() {
       </motion.div>
 
       {/* هالة حمراء */}
-      <motion.span
+      <motion.span suppressHydrationWarning
         aria-hidden
         className="absolute -left-40 top-1/3 -z-10 h-[32rem] w-[32rem] rounded-full bg-brand/25 blur-[130px]"
         animate={{ opacity: [0.5, 0.95, 0.5], scale: [1, 1.12, 1] }}
         transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      <motion.div style={{ y: textY, opacity: fade }} className="mx-auto grid w-full max-w-7xl gap-10 px-4 lg:grid-cols-[1.05fr_.95fr] lg:items-center">
+      <motion.div suppressHydrationWarning style={{ y: textY, opacity: fade }} className="mx-auto grid w-full max-w-7xl gap-10 px-4 lg:grid-cols-[1.05fr_.95fr] lg:items-center">
         {/* النص */}
         <div>
-          <motion.div
+          <motion.div suppressHydrationWarning
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
@@ -57,7 +57,7 @@ export default function GymHero() {
 
           <h1 className="mt-5 text-[2.6rem] font-black leading-[1.06] tracking-tight sm:text-6xl lg:text-[4.6rem]">
             {words.map((w, i) => (
-              <motion.span
+              <motion.span suppressHydrationWarning
                 key={w + i}
                 initial={{ opacity: 0, y: 34, filter: "blur(8px)" }}
                 animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
@@ -69,7 +69,7 @@ export default function GymHero() {
             ))}
           </h1>
 
-          <motion.p
+          <motion.p suppressHydrationWarning
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.55, duration: 0.7 }}
@@ -79,7 +79,7 @@ export default function GymHero() {
             تشغّله وتجمّده وتجدّده أونلاين في دقيقة واحدة.
           </motion.p>
 
-          <motion.div
+          <motion.div suppressHydrationWarning
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.68, duration: 0.7 }}
@@ -101,7 +101,7 @@ export default function GymHero() {
             </LinkBtn>
           </motion.div>
 
-          <motion.div
+          <motion.div suppressHydrationWarning
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.9 }}
@@ -127,7 +127,7 @@ export default function GymHero() {
         {/* كروت الأرقام */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:gap-5">
           {STATS.map((s, i) => (
-            <motion.div
+            <motion.div suppressHydrationWarning
               key={s.label}
               initial={{ opacity: 0, y: 30, rotateX: -12 }}
               animate={{ opacity: 1, y: 0, rotateX: 0 }}

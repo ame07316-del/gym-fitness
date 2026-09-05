@@ -50,7 +50,7 @@ export default function Schedule() {
                 )}
               >
                 {day === i && view === "day" && (
-                  <motion.span layoutId="day-pill" className="absolute inset-0 -z-10 rounded-xl bg-brand" transition={{ type: "spring", stiffness: 380, damping: 30 }} />
+                  <motion.span suppressHydrationWarning layoutId="day-pill" className="absolute inset-0 -z-10 rounded-xl bg-brand" transition={{ type: "spring", stiffness: 380, damping: 30 }} />
                 )}
                 {d.day}
                 {i === todayIdx && <span className="mr-1.5 h-1.5 w-1.5 align-middle rounded-full bg-mint inline-block" />}
@@ -71,7 +71,7 @@ export default function Schedule() {
         </Reveal>
 
         <AnimatePresence mode="wait">
-          <motion.div
+          <motion.div suppressHydrationWarning
             key={view + day}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -92,7 +92,7 @@ export default function Schedule() {
               const full = left <= 0;
 
               return (
-                <motion.div
+                <motion.div suppressHydrationWarning
                   layout={view === "day"}
                   key={key + cls.name}
                   className={cx(
@@ -143,7 +143,7 @@ export default function Schedule() {
                           </span>
                         </div>
                         <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                          <motion.div
+                          <motion.div suppressHydrationWarning
                             className={cx("h-full rounded-full", full ? "bg-gold" : left <= 3 ? "bg-brand" : "bg-mint")}
                             initial={{ width: 0 }}
                             animate={{ width: `${pct}%` }}
