@@ -12,6 +12,19 @@
    - **متحطش** `BACKEND_URL` هنا — ده للربط المحلي بباك إند Laravel. لو بعدين عايز تطلع الـ API لباك إند شغال، حطه وقوّي `BACKEND_ONLY`.
 5. Deploy. هيطلع معاك لينك زي `fitzone-pro-xxx.vercel.app`.
 
+## 1.5) ⚠️ لو الرابط فتح صفحة «Log in to Vercel»
+
+ده مش باج — ده **Vercel Deployment Protection** مقفول على الـ Preview deployments، وأي حد
+بره حسابك مش هيشوف حاجة. الحل (مرة واحدة):
+
+1. Vercel ← Project ← **Settings** ← **Deployment Protection**.
+2. تحت **Vercel Authentication** اختار **Disabled for Preview and Production**
+   (أو **Preview Only: System Bypass** لو عايز البريفيو محمي والـ production مفتوح).
+3. احفظ، وافتح الرابط في **Incognito** تتأكد إن حد تاني بيشوفه فعلًا.
+
+الأنضج للمشروع الحي: ادمج البرانتش على `main` → الـ **Production** deployment بيطلع
+بروكس الحماية مقفولة افتراضيًا، والرابط بيكون أقصر وأنضف.
+
 ## 2) لو عايز رابط ثابت (الأحلى في السيرة الذاتية)
 
 - **دومين بـ 15$/سنة** (`.com` أو `.me`) من Porkbun/Namecheap ← Vercel ← Domains ← Add.
@@ -19,6 +32,7 @@
 
 ## 3) بعد ما يطلع
 
+- [ ] افتح الرابط في **Incognito** من تليفون تاني — تتأكد إن الحماية مقفولة فعلًا.
 - [ ] افتحه على **الموبايل** من التليفون نفسه (مش DevTools بس).
 - [ ] جرّب الاشتراك للنهاية: باقة ← كوبون `FIT10` ← كارت `4242 4242 4242 4242` ← `000000` (يفشل بالنية) ← `483920` (ينجح).
 - [ ] شغّل **Lighthouse** (DevTools ← Lighthouse ← Performance + Accessibility + Best practices + SEO) وسجّل الأرقام في الـ README.
