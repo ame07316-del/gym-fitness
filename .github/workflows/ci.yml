@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: typecheck + lint + tests + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: tsc --noEmit
+        run: npm run typecheck
+
+      - name: eslint
+        run: npm run lint
+
+      - name: vitest (pricing engine + card rules + API contract)
+        run: npm test
+
+      - name: next build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
