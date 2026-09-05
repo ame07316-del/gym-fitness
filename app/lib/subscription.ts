@@ -28,6 +28,9 @@ export type Quote = {
   couponError: string | null;
 };
 
+/** كل المبالغ بتتقرّب لأقرب قرشين — عشان الفلوس ما تتلغشطش في الفوترة */
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
 export const findPlan = (id: PlanId) => PLANS.find((p) => p.id === id) ?? PLANS[1];
 export const findCycle = (id: CycleId) => CYCLES.find((c) => c.id === id) ?? CYCLES[0];
 export const addonById = (id: string) => ADDONS.find((a) => a.id === id);
@@ -48,8 +51,8 @@ export function quoteOf(draft: Draft): Quote {
   const addonsTotal = addonsMonthly * months;
   const subtotal = planTotal + addonsTotal;
 
-  const cycleDiscount = planTotal * cycle.off;
-  const afterCycle = subtotal - cycleDiscount;
+  const cycleDiscount = r2(planTotal * cycle.off);
+  const afterCycle = r2(subtotal - cycleDiscount);
 
   const coupon = draft.coupon ? matchCoupon(draft.coupon) : null;
   let couponDiscount = 0;
@@ -59,16 +62,16 @@ export function quoteOf(draft: Draft): Quote {
     if (!coupon) couponError = "الكود غير صحيح — جرّب FIT10";
     else if (subtotal < coupon.min) couponError = `الكود يبدأ من ${coupon.min.toLocaleString("ar-EG")} ج.م`;
     else {
-      couponDiscount = afterCycle * coupon.off;
+      couponDiscount = r2(afterCycle * coupon.off);
       if (coupon.max) couponDiscount = Math.min(couponDiscount, coupon.max);
     }
   }
 
-  const net = Math.max(0, afterCycle - couponDiscount);
-  const vat = net * VAT_RATE;
-  const total = net + vat;
-  const monthlyIfMonthly = plan.monthly * (1 + VAT_RATE) + addonsMonthly * (1 + VAT_RATE);
-  const saved = Math.max(0, monthlyIfMonthly * months - total);
+  const net = r2(Math.max(0, afterCycle - couponDiscount));
+  const vat = r2(net * VAT_RATE);
+  const total = r2(net + vat);
+  const monthlyIfMonthly = r2(plan.monthly * (1 + VAT_RATE) + addonsMonthly * (1 + VAT_RATE));
+  const saved = r2(Math.max(0, monthlyIfMonthly * months - total));
 
   return {
     planName: plan.name,
