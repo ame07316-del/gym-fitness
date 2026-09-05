@@ -1,3 +1,4 @@
+import { EG_PHONE_RE } from "@/app/lib/utils";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +30,7 @@ export function validateBooking(body: Record<string, unknown>) {
   const phone = clean(body.phone, 20).replace(/[\s-]/g, "");
 
   if (name.length < 3) errors.name = "من فضلك اكتب اسمك الكامل (3 أحرف على الأقل)";
-  if (!/^(\+?2)?01[0-9]{9}$/.test(phone)) errors.phone = "رقم موبايل مصري غير صحيح — مثال: 01012345678";
+  if (!EG_PHONE_RE.test(phone)) errors.phone = "رقم موبايل مصري غير صحيح — مثال: 01012345678";
 
   return { name, phone, goal: clean(body.goal, 60) || "غير محدد", errors };
 }

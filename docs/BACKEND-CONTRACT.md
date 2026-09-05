@@ -78,7 +78,7 @@ BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← ال
 
 ### قواعد الفيلدز المستخدمة في الواجهة
 - الاسم: `trim().length >= 3`
-- الموبايل: `/^(\+?2)?01[0-9]{9}$/`
+- الموبايل: `/^(?:\+?2|002)?01[0-9]{9}$/` (المسافات والشرطات بتتشال الأول، و`+2`/`002` اختيارية)
 - القيمة: `total > 0` · `months` بين 1 و24 · `addonIds` مصفوفة ≤ 12 عنصر
 - `code` للـ OTP: 6 أرقام
 
@@ -99,7 +99,7 @@ Route::post('/pay/confirm',[PaymentController::class, 'confirm']);
 public function store(Request $r) {
     $data = $r->validate([
         'name'  => 'required|string|min:3|max:60',
-        'phone' => ['required', 'regex:/^(\+?2)?01[0-9]{9}$/'],
+        'phone' => ['required', 'regex:/^(?:\+?2|002)?01[0-9]{9}$/'],
         'goal'  => 'nullable|string|max:60',
         'slot'  => 'nullable|string|max:40',
         'plan'  => 'nullable|string|max:40',
@@ -146,7 +146,7 @@ create table payments (
 ```
 
 ## 4) ملاحظات مهمة
-- **CORS**: لو مستخدم `BACKEND_URL` (بروكسي) مفيش CORS خالص. لو مستخدم `NEXT_PUBLIC_API_BASE` ضيف `config/cors.php` بـ `paths => ['api/*']` و `allowed_origins => [رANGE الموقع]`.
+- **CORS**: لو مستخدم `BACKEND_URL` (بروكسي) مفيش CORS خالص. لو مستخدم `NEXT_PUBLIC_API_BASE` ضيف `config/cors.php` بـ `paths => ['api/*']` و `allowed_origins => [دومين الفرونت]`.
 - **الأمان**: متسجلش أرقام بطاقات أبدًا. ابعت الكارت للبوابة (Paymob/Fawry/Stripe tokenization) وخزّن `gateway_ref` بس. الواجهة أصلاً بتبعت `card` للـ endpoint بتاعكم ومنه للبوابة — ماتخليش اللوجز يسجل البودي.
 - **idempotency**: الواجهة بتبعت `orderId`/`id` ثابت — استخدمه كمفتاح فريد عشان لو الطلب اتعمل مرتين (ضعف شبكة) ميتعملش مزدوج.
 - **idempotent OTP**: لو `reference` اتأكدت قبل كده، ارجع `succeeded` تاني بدل 404.
@@ -161,4 +161,19 @@ curl -s -X POST $BACKEND/api/bookings -H 'Content-Type: application/json' \
 curl -s -X POST $BACKEND/api/pay -H 'Content-Type: application/json' \
   -d '{"method":"card","amount":100,"card":{"number":"4242 4242 4242 4242"}}'   # → requires_action
 ```
-ولو عايز تقارن بالردود الحالية، شغّل الفرونت من غير `BACKEND_URL` واطر نفس الطلبات على `http://localhost:3000/api/...`.
+
+## 6) المرجع الرسمي للسلوك: اختبارات الفرونت نفسها
+
+في `tests/api-contract.test.ts` فيه 49 assertion بينادوا الـ route handlers المحلية ويأكدوا
+كل حالة في العقد (201 تأكيد الحجز، 422 بـ `fields`، 402 رفض بنك، 401 OTP غلط، 404 مرجع
+مش موجود، 422 من غير `amount`). يعني:
+
+- لو حبيت تعرف «الصح إيه بالظبط» — اقرأ الملف ده، ده المواصفة مش الكلام.
+- لما باك إندك يخلص، اسرق الـ `it(...)` دي وحولها لـ Pest/PHPUnit (نفس الـ payloads) —
+  كده فريق الباك إند عنده تعريف جاهز للـ done.
+- `npm test` في الريبو ده شغال في CI (`typecheck → lint → vitest → build`)، فمفيش احتمال
+  العقد يتكسر من غير ما حد ياخد باله.
+
+> للتشغيل اليدوي قدام باك إندك: `BACKEND_URL=http://127.0.0.1:8000 node scripts/mock-backend.mjs`
+> بيديك ردود مطابقة للعقد من غير داتابيز — حط `BACKEND_URL` بتاعك على نفس البورت وقارن.
+

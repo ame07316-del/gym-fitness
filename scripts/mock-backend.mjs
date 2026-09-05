@@ -13,7 +13,7 @@ const subscriptions = [];
 const intents = new Map();
 
 const digits = (v) => String(v ?? "").replace(/\D/g, "");
-const phoneOk = (v) => /^(\+?2)?01[0-9]{9}$/.test(digits(v));
+const phoneOk = (v) => /^(?:\+?2|002)?01[0-9]{9}$/.test(digits(v));
 const nameOk = (v) => typeof v === "string" && v.trim().length >= 3;
 
 function luhn(n) {

@@ -24,4 +24,10 @@ export const daysBetween = (a: number, b: number) =>
 export const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
 /** موبايل مصري: 01 + 10 أرقام */
-export const isEGPhone = (v: string) => /^(\+?2)?01[0-9]{9}$/.test(v.replace(/[\s-]/g, ""));
+/**
+ * موبايل مصري: 11 رقم بيبدأ بـ 010–015.
+ * بنقبل كمان بادئة الدولي `+2` أو `002` والمسافات والشرطات — لأن ناس كتير
+ * بتلصق الرقم من واتساب أو من كارت الفرع.
+ */
+export const EG_PHONE_RE = /^(?:\+?2|002)?01[0-9]{9}$/;
+export const isEGPhone = (v: string) => EG_PHONE_RE.test(v.replace(/[\s-]/g, ""));
