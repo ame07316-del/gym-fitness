@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# مجلد فاضي اتساب بالغلط من الكوميت الأصلي (gitlink مكسور)
+/gym-fitness/
