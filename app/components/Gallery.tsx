@@ -185,6 +185,7 @@ export default function Gallery() {
 function TransformSlider() {
   const [idx, setIdx] = useState(0);
   const [pct, setPct] = useState(52);
+  const [touched, setTouched] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const t = TRANSFORMS[idx];
 
@@ -205,7 +206,7 @@ function TransformSlider() {
             <Sparkles className="h-5 w-5 text-gold" /> اسحب الخط.. قبل وبعد
           </h3>
           <p className="mt-1 text-xs text-white/45">
-            {t.name} · <span className="num">{t.months}</span> شهور ·{" "}
+            {t.name} · {t.meta} · <span className="num">{t.months}</span> شهور ·{" "}
             <span className="font-bold text-mint">{t.lost}</span>
           </p>
         </div>
@@ -233,6 +234,7 @@ function TransformSlider() {
         className="relative aspect-[16/9] w-full cursor-ew-resize touch-none select-none overflow-hidden rounded-2xl border border-line"
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture?.(e.pointerId);
+          setTouched(true);
           moveTo(e.clientX);
         }}
         onPointerMove={(e) => e.buttons === 1 && moveTo(e.clientX)}
@@ -245,9 +247,23 @@ function TransformSlider() {
 
         <div className="pointer-events-none absolute inset-y-0 z-10 w-px bg-white/80" style={{ right: `${pct}%` }}>
           <span className="absolute inset-y-0 -right-px w-px bg-brand/70 blur-[2px]" />
-          <span className="absolute top-1/2 grid h-11 w-11 -translate-y-1/2 translate-x-1/2 place-items-center rounded-full border-2 border-white bg-brand text-white shadow-xl">
+          <motion.span
+            animate={touched ? { x: 0 } : { x: [0, -7, 7, 0] }}
+            transition={touched ? { duration: 0.2 } : { duration: 2.4, repeat: Infinity, repeatDelay: 1.2 }}
+            className="absolute top-1/2 grid h-11 w-11 -translate-y-1/2 translate-x-1/2 place-items-center rounded-full border-2 border-white bg-brand text-white shadow-xl"
+          >
             <GripVertical className="h-4 w-4" />
-          </span>
+          </motion.span>
+          {!touched && (
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 1, 1, 0] }}
+              transition={{ duration: 2.4, repeat: Infinity }}
+              className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-brand px-2.5 py-1 text-[10px] font-black text-white"
+            >
+              اسحب ←
+            </motion.span>
+          )}
         </div>
 
         <span className="absolute right-3 top-3">
@@ -259,6 +275,9 @@ function TransformSlider() {
         <span className="num absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-ink/75 px-3 py-1 text-[11px] font-bold text-white/70 backdrop-blur">
           {pct}٪
         </span>
+        <p className="absolute inset-x-3 bottom-3 hidden max-w-[46%] text-[11px] font-bold leading-snug text-white/70 sm:block">
+          “{t.quote}”
+        </p>
       </div>
 
       <input

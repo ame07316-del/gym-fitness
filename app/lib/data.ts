@@ -10,6 +10,12 @@ import trainer1 from "@/public/images/trainer-1.jpg";
 import trainer2 from "@/public/images/trainer-2.jpg";
 import trainer3 from "@/public/images/trainer-3.jpg";
 import trainer4 from "@/public/images/trainer-4.jpg";
+import beforeCut from "@/public/images/before-cut.jpg";
+import afterCut from "@/public/images/after-cut.jpg";
+import beforeYoga from "@/public/images/before-yoga.jpg";
+import afterYoga from "@/public/images/after-yoga.jpg";
+import beforeBulk from "@/public/images/before-bulk.jpg";
+import afterBulk from "@/public/images/after-bulk.jpg";
 import {
   Users, Dumbbell, Flame, Activity, HeartPulse, Trophy, WavesHorizontal, Bike, Music2,
   Timer, Gem, Snowflake, Utensils, CalendarDays,
@@ -388,48 +394,129 @@ export const HERO_IMAGE = heroImg;
 export type Transform = {
   id: string;
   name: string;
+  meta: string;
   months: number;
   lost: string;
   label: string;
-  from: typeof weightsImg;
-  to: typeof weightsImg;
+  quote: string;
+  from: typeof beforeCut;
+  to: typeof afterCut;
 };
 
 export const TRANSFORMS: Transform[] = [
-  { id: "cut", name: "كريم م.", months: 4, lost: "−25 كجم دهون", label: "تخسيس", from: weightsImg, to: cardioImg },
-  { id: "pose", name: "نهى ص.", months: 6, lost: "قوام متناسق", label: "بيلاتس", from: classesImg, to: recoveryImg },
-  { id: "bulk", name: "يوسف ر.", months: 8, lost: "+9 كجم عضل", label: "تضخيم", from: heroImg, to: crossfitImg },
+  {
+    id: "cut",
+    name: "أحمد إبراهيم",
+    meta: "27 سنة · التخسيس بالمائجة",
+    months: 4,
+    lost: "−25 كجم دهون",
+    label: "تخسيس",
+    quote: "أول شهر كنت بجي ٦ الصبح عشان أخاف حد يبص لي.",
+    from: beforeCut,
+    to: afterCut,
+  },
+  {
+    id: "pose",
+    name: "منى خالد",
+    meta: "٣٢ سنة · بعد الولادة",
+    months: 6,
+    lost: "قوام متناسق + نوم رجعت",
+    label: "بيلاتس",
+    quote: "بدأنا بعشر دقايق. كنت أنام في العربية قبل ما أطلع.",
+    from: beforeYoga,
+    to: afterYoga,
+  },
+  {
+    id: "bulk",
+    name: "كريم صبري",
+    meta: "٢٤ سنة · تضخيم نظيف",
+    months: 8,
+    lost: "+9 كجم عضل",
+    label: "تضخيم",
+    quote: "الورقة الصغيرة اللي الكوتش بيكتبلي فيها هي اللي فرّقت.",
+    from: beforeBulk,
+    to: afterBulk,
+  },
 ];
 
 /* ========================= Social proof ========================= */
 export const TESTIMONIALS = [
   {
     name: "أحمد إبراهيم",
-    role: "عضو من 2024",
-    text: "خسيت 25 كيلو في 4 شهور! البرنامج كان واقعي وأكلي في البيت متغيرش، والكابتن محمد كان بيطمني كل أسبوع.",
+    role: "عضو من 4 شهور · باقة برو",
+    text: "أول يوم دخلت مشيت بعد 20 دقيقة لأني حسيت إن كل الناس بتبص عليا. الكابتن محمد لحظ ده وقالي تعال بكرة الفجر مفيش حد. روحت فعلًا. خسيت 25 كيلو من غير ما آكل سلطة بس — كنت بخبي شاورما السبت وأعوّضها الأحد. الحاجة الوحيدة اللي مضايقاني إن عصير البروتين في الكافيتريا غالي شوية.",
     rating: 5,
     result: "−25 كجم",
+    when: "من ١٢ يوم",
   },
   {
     name: "منى خالد",
-    role: "عضوة VIP",
-    text: "المكان نظيف والأجهزة جديدة، وصالة السيدات مستقلة تماماً. الكابتن سارة عدّلت قوامي من غير أي إصابة.",
+    role: "عضوة VIP · بعد الولادة",
+    text: "جيت بعد الولادة بسبعة شهور ومش عارفة أعمل إيه. الكابتن سارة قالت هنبدأ بعشر دقايق. كنت أنام عشر دقايق في العربية قبل ما أطلع، وعشر دقايق على جهاز المشي. بعد ٦ شهور القوام رجع والأهم إني بقيت أنام. صالة السيدات نظيفة وريحة المكان كويسة، ده اللي خليني أكمل.",
     rating: 5,
-    result: "قوام متناسق",
+    result: "قوام بعد الولادة",
+    when: "من ٣ أسابيع",
   },
   {
     name: "محمود علي",
-    role: "لاعب ناشئ",
-    text: "اتحضّرت لأول بطولة ولاية على يد الكابتن أحمد. المستوى ده مش موجود في أي جيم تاني في المنطقة.",
+    role: "عضو من ٨ شهور · أساسي + كوتش",
+    text: "الكابتن أحمد كان بيكتبلي التمرين على ورقة صغيرة ويمسحها كل أسبوعين. في الأول ضحكت، بس الورقة دي هي اللي فرّقت. ٨ شهور ووزني من ٦٢ لـ ٧١ وناس الشغل بتسألني بتعمل إيه. العيب الوحيد: الجراج بيتقفل الساعة ٨ بالليل ولازم تستنى دور.",
     rating: 5,
     result: "+9 كجم عضل",
+    when: "من شهرين",
   },
   {
     name: "سلمى فؤاد",
-    role: "طالبة جامعة",
-    text: "اشتراك الـ 3 شهور كان مثالي لي بين الامتحانات، وحجزت الكلاسات من الموبايل في ثواني وبقت تظهر في جدولي.",
+    role: "طالبة · اشتراك ٣ شهور",
+    text: "اشتريت باقة ٣ شهور بين الامتحانات. الحجز من الموقع سريع وكارت العضوية على الموبايل مريح. مرة السيستم وقع وأنا أحجز كروس فيت، كلمتهم على واتساب ردوا في ٦ دقايق وحلوا المشكلة. مفيش حصة اتلغت — عشان كده ٤ مش ٥، عايزين السيستم ما يقعش 😄",
     rating: 4,
-    result: "داوم 3×/أسبوع",
+    result: "داوم ٣×/أسبوع",
+    when: "من ٥ أسابيع",
+  },
+];
+
+export const REVIEWS = [
+  {
+    name: "كريم صبري",
+    rating: 5,
+    text: "أحسن حاجة إن المكان مفتوح لحد ١٢ بالليل. أنا بشغل شفتين، ودلوقتي بتمرن ١١ ونص ومفيش نظرة غريبة.",
+    plan: "أساسي",
+    when: "من ١٢ يوم",
+  },
+  {
+    name: "نهى رجب",
+    rating: 4,
+    text: "صالة السيدات من ٤ لـ ٨ نظيفة ومفيش زحمة. الساونا كانت سخنة زيادة عن اللزوم، قلتلهم وخفّضوها فعلًا.",
+    plan: "برو",
+    when: "من ٣ أسابيع",
+  },
+  {
+    name: "عميد حسام",
+    rating: 5,
+    text: "الاشتراك السنوي بخصم ٢٢٪ وفّرلي شهرين ونص. جمدت شهر وأنا مسافر من اللوحة لوحدي من غير ما أكلم حد.",
+    plan: "سنوي VIP",
+    when: "من شهرين",
+  },
+  {
+    name: "ياسمين طه",
+    rating: 5,
+    text: "أول ما عملت InBody كنت فاكرها دعاية. طلعت الأرقام صح وكنت فعند عندي دهون حشوية. البرنامج الغذائي خلاني آكل عيش ومكرونة وخسيت برضه.",
+    plan: "برو + تغذية",
+    when: "من ٥ أسابيع",
+  },
+  {
+    name: "مصطفى جامع",
+    rating: 3,
+    text: "التمرين والكوتشات تمام. بس في ساعة الذروة ٧-٨ مساءً بتستنى جهاز الصدر دقيقة أو اتنين. يا ريت يحطوا حجز للأجهزة زي الكلاسات.",
+    plan: "أساسي",
+    when: "من ٤ شهور",
+  },
+  {
+    name: "رنا أسامة",
+    rating: 5,
+    text: "البيلاتس مع كابتن سارة عدّلت ضهري من القعدة في المكتب. الحجز بيمتلي في دقيقة، لازم تحجز بدري 😅",
+    plan: "كلاسات",
+    when: "من أسبوع",
   },
 ];
 

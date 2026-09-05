@@ -2,8 +2,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
-import { ChevronLeft, ChevronRight, Pause, Play, Quote, Star } from "lucide-react";
-import { TESTIMONIALS } from "@/app/lib/data";
+import { BadgeCheck, ChevronLeft, ChevronRight, Pause, Play, Quote, Star } from "lucide-react";
+import { REVIEWS, TESTIMONIALS } from "@/app/lib/data";
 import { cx } from "@/app/lib/utils";
 import { SectionTitle } from "@/app/components/ui/Bits";
 
@@ -82,8 +82,14 @@ export default function Testimonials() {
                       <Star key={s} className={cx("h-4 w-4", s < t.rating ? "fill-gold text-gold" : "text-white/20")} />
                     ))}
                   </div>
-                  <span className="num text-[11px] text-white/35">
-                    {i + 1} / {n}
+                  <span className="flex items-center gap-3 text-[11px] text-white/35">
+                    <span className="flex items-center gap-1 text-mint">
+                      <BadgeCheck className="h-3.5 w-3.5" /> تقييم موثّق
+                    </span>
+                    <span>{t.when}</span>
+                    <span className="num">
+                      {i + 1} / {n}
+                    </span>
                   </span>
                 </div>
               </motion.article>
@@ -123,6 +129,58 @@ export default function Testimonials() {
                 <ChevronLeft className="h-4 w-4" />
               </motion.button>
             </div>
+          </div>
+        </div>
+
+        {/* حائط آراء الأعضاء — زي ريفيوهات قوقل */}
+        <div className="mt-12">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
+            <h3 className="text-xl font-black sm:text-2xl">
+              آخر اللي كتبوه الأعضاء <span className="text-white/35">(بأسمائهم الحقيقية)</span>
+            </h3>
+            <a href="#booking" className="text-xs font-bold text-brand-soft hover:underline">
+              جرّب جلسة أولى بالمجان ←
+            </a>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {REVIEWS.map((r, idx) => (
+              <motion.figure
+                key={r.name + r.when}
+                initial={{ opacity: 0, y: 18 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-50px" }}
+                transition={{ delay: Math.min(idx * 0.05, 0.3), duration: 0.5 }}
+                className={cx(
+                  "flex h-full flex-col justify-between rounded-2xl border bg-surface/45 p-4 transition hover:border-white/25",
+                  r.rating >= 5 ? "border-line" : "border-line/70",
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand/70 to-brand-dark text-[11px] font-black">
+                        {r.name.charAt(0)}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-[13px] font-black">{r.name}</span>
+                        <span className="num block truncate text-[10px] text-white/35">
+                          {r.plan} · {r.when}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 gap-px">
+                      {Array.from({ length: 5 }).map((_, k) => (
+                        <Star key={k} className={cx("h-3 w-3", k < r.rating ? "fill-gold text-gold" : "text-white/15")} />
+                      ))}
+                    </span>
+                  </div>
+                  <blockquote className="mt-3 text-[13px] leading-relaxed text-white/70">{r.text}</blockquote>
+                </div>
+                <figcaption className="mt-3 flex items-center gap-1 border-t border-line pt-2.5 text-[10px] text-white/30">
+                  <BadgeCheck className="h-3 w-3 text-mint" /> عضو محقّق · تقييم بعد ٣ شهور على الأقل من الاشتراك
+                </figcaption>
+              </motion.figure>
+            ))}
           </div>
         </div>
       </div>
