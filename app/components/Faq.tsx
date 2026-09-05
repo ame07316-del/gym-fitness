@@ -63,6 +63,8 @@ export default function Faq() {
                 <Reveal key={f.q} delay={Math.min(i * 0.04, 0.3)}>
                   <div className={cx("overflow-hidden rounded-2xl border bg-surface/50 transition", isOpen ? "border-brand/45" : "border-line hover:border-white/25")}>
                     <button
+                      id={`faq-q-${id}`}
+                      aria-controls={`faq-a-${id}`}
                       onClick={() => setOpen(isOpen ? null : id)}
                       aria-expanded={isOpen}
                       className="flex w-full items-center justify-between gap-4 p-4 text-right"
@@ -77,7 +79,11 @@ export default function Faq() {
                     </button>
                     <AnimatePresence initial={false}>
                       {isOpen && (
-                        <motion.div suppressHydrationWarning
+                        <motion.div
+                          id={`faq-a-${id}`}
+                          role="region"
+                          aria-labelledby={`faq-q-${id}`}
+                          suppressHydrationWarning
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: "auto", opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}

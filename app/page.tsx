@@ -15,7 +15,7 @@ import Checkout from "./components/Checkout";
 
 export default function Home() {
   return (
-    <main className="min-h-screen overflow-x-clip bg-ink pb-[74px] text-white selection:bg-brand md:pb-0">
+    <main id="main" className="min-h-screen overflow-x-clip bg-ink pb-[74px] text-white selection:bg-brand md:pb-0">
       <Navbar />
       <GymHero />
       <Amenities />

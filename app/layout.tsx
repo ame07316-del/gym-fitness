@@ -40,6 +40,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ar" dir="rtl" data-scroll-behavior="smooth">
       <body className="bg-ink text-white antialiased">
+        {/* Skip link للكيبورد وقارئ الشاشة — بيظهر أول ما تدوس Tab */}
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:right-4 focus:top-4 focus:z-[200] focus:rounded-xl focus:bg-brand focus:px-4 focus:py-2.5 focus:text-sm focus:font-black focus:text-white"
+        >
+          تخطَّ إلى المحتوى
+        </a>
         <ToastProvider>
           <GymProvider>{children}</GymProvider>
         </ToastProvider>
