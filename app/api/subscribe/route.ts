@@ -1,6 +1,8 @@
 import { isAdminRequest, NO_STORE_HEADERS } from "@/app/lib/api-security";
 import { checkRateLimit } from "@/app/lib/rate-limit";
 import { ADDONS, CYCLES, PLANS, type CycleId, type PlanId } from "@/app/lib/data";
+import { insertSubscription, findSubscription, listSubscriptions } from "@/app/lib/repository";
+import { isSupabaseConfigured } from "@/app/lib/supabase-admin";
 import { readJsonObject } from "@/app/lib/request";
 import { addMonths, quoteOf } from "@/app/lib/subscription";
 import { NextResponse } from "next/server";
@@ -92,7 +94,16 @@ export async function POST(request: Request) {
 
   const suppliedId = clean(body.orderId, 24).replace(/[^a-zA-Z0-9_-]/g, "");
   const orderId = suppliedId || `FZ-${Date.now().toString(36).toUpperCase()}`;
-  const existing = orders.find((order) => order.orderId === orderId);
+  let existing: SubscribeRecord | null = null;
+  if (isSupabaseConfigured) {
+    try {
+      existing = (await findSubscription(orderId)) as SubscribeRecord | null;
+    } catch {
+      return NextResponse.json({ error: "تعذر التحقق من الطلب" }, { status: 503, headers: NO_STORE_HEADERS });
+    }
+  } else {
+    existing = orders.find((order) => order.orderId === orderId) ?? null;
+  }
   if (existing) {
     // Idempotent retries must not become a way to read another member's PII.
     const publicOrder = {
@@ -134,6 +145,47 @@ export async function POST(request: Request) {
     endsAt: addMonths(createdAt, quote.months),
   };
 
+  if (isSupabaseConfigured) {
+    try {
+      const saved = await insertSubscription(rec);
+      if (saved.duplicate) {
+        if (!saved.record) {
+          return NextResponse.json({ error: "تعذر قراءة الطلب الموجود" }, { status: 503, headers: NO_STORE_HEADERS });
+        }
+        const duplicate = saved.record;
+        return NextResponse.json(
+          {
+            ok: true,
+            order: {
+              orderId: duplicate.orderId,
+              planId: duplicate.planId,
+              planName: duplicate.planName,
+              cycle: duplicate.cycle,
+              months: duplicate.months,
+              addonIds: duplicate.addonIds,
+              coupon: duplicate.coupon,
+              total: duplicate.total,
+              perMonth: duplicate.perMonth,
+              payment: duplicate.payment,
+              status: duplicate.status,
+              createdAt: duplicate.createdAt,
+              endsAt: duplicate.endsAt,
+            },
+            invoice: `INV-${duplicate.orderId}`,
+            message: `الطلب ${duplicate.orderId} متسجل بالفعل`,
+          },
+          { status: 200, headers: NO_STORE_HEADERS },
+        );
+      }
+      return NextResponse.json(
+        { ok: true, order: saved.record, invoice: `INV-${rec.orderId}`, message: `تم تفعيل عضوية ${rec.member.name} — ${rec.planName}` },
+        { status: 201, headers: NO_STORE_HEADERS },
+      );
+    } catch {
+      return NextResponse.json({ error: "تعذر حفظ الاشتراك — جرّب مرة أخرى" }, { status: 503, headers: NO_STORE_HEADERS });
+    }
+  }
+
   orders.unshift(rec);
   if (orders.length > MAX) orders.length = MAX;
 
@@ -146,6 +198,14 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   if (!isAdminRequest(request)) {
     return NextResponse.json({ error: "غير مصرح — يلزم رمز لوحة الإدارة" }, { status: 401, headers: NO_STORE_HEADERS });
+  }
+
+  if (isSupabaseConfigured) {
+    try {
+      return NextResponse.json(await listSubscriptions(), { headers: NO_STORE_HEADERS });
+    } catch {
+      return NextResponse.json({ error: "تعذر قراءة الاشتراكات" }, { status: 503, headers: NO_STORE_HEADERS });
+    }
   }
 
   const revenue = orders.reduce((s, o) => s + o.total, 0);

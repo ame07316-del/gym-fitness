@@ -7,8 +7,10 @@
 1. روح [vercel.com/new](https://vercel.com/new) ← **Import** ← اختار `ame07316-del/gym-fitness`.
 2. Framework Preset: **Next.js** (هيكتشفه لوحده). Root Directory: فاضي. Build command: `npm run build` — Output directory: فاضي.
 3. Node Version: **22.x** (نفس `.nvmrc`).
-4. Environment Variables — **مفيش أي متغير مطلوب** عشان الموقع شغال على الـ Route Handlers بتاعته:
+4. Environment Variables:
    - `NEXT_PUBLIC_SITE_URL` = `https://اسم-الموقع.vercel.app` (اختياري، بس بيظبط الـ `metadataBase` والـ OG والـ sitemap).
+   - `ADMIN_API_TOKEN` = توكن عشوائي قوي لحماية إحصائيات الإدارة.
+   - لتخزين دائم: شغّل [`docs/SUPABASE.md`](SUPABASE.md) وضع `SUPABASE_URL` و`SUPABASE_SERVICE_ROLE_KEY` في Vercel.
    - **متحطش** `BACKEND_URL` هنا — ده للربط المحلي بباك إند Laravel. لو بعدين عايز تطلع الـ API لباك إند شغال، حطه وقوّي `BACKEND_ONLY`.
 5. Deploy. هيطلع معاك لينك زي `fitzone-pro-xxx.vercel.app`.
 

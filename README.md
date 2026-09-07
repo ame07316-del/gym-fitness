@@ -10,7 +10,7 @@
   <a href="https://github.com/ame07316-del/gym-fitness/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ame07316-del/gym-fitness/actions/workflows/ci.yml/badge.svg"></a>
   <a href="#"><img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-black?logo=next.js"></a>
   <a href="#"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript"></a>
-  <a href="tests/"><img alt="Tests" src="https://img.shields.io/badge/vitest-49%20passing-6E9F18"></a>
+  <a href="tests/"><img alt="Tests" src="https://img.shields.io/badge/vitest-53%20passing-6E9F18"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-All%20rights%20reserved-orange"></a>
 </p>
 
@@ -49,7 +49,7 @@
 nvm use                # Node 22 (راجع .nvmrc)
 npm install
 npm run dev            # http://localhost:3000 — بيسمع على 0.0.0.0 للمعاينات الخارجية
-npm test               # 49 اختبار: محرك الأسعار + قواعد الكروت + عقد الـ API
+npm test               # 53 اختبار: الأسعار + الكروت + عقد الـ API + الأمان
 npm run typecheck      # tsc --noEmit
 npm run lint           # eslint
 npm run build          # production build
@@ -122,7 +122,8 @@ npm run test:watch
 | `BACKEND_URL=http://127.0.0.1:8000` | كل الطلبات على `/api/*` بتتوجه لباك إندك **قبل** هاندلرات نكست |
 | `BACKEND_ONLY=bookings,subscribe,pay,pay/confirm` | يسيّب باقي المسارات لهاندلرات نكست |
 | `NEXT_PUBLIC_API_BASE=https://api…` | النداء يطلع من المتصفح مباشرة (يحتاج CORS) |
-| الاتنين فاضيين | الموقع شغال كامل على هاندلرات نكست — جاهز للعرض للعميل |
+| `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` | تخزين الحجوزات والاشتراكات في Supabase من السيرفر، والمفتاح لا يخرج للمتصفح |
+| الاتنين فاضيين | الموقع شغال كامل على هاندلرات نكست مع fallback in-memory — مناسب للعرض المحلي فقط |
 
 **الخطوات:**
 
@@ -155,11 +156,13 @@ app/
     payment.ts          Luhn + أنواع الكروت + validateCard + TEST_CARDS + authorize/confirm
     subscription.ts     محرك الأسعار (بتقريب للفلس) + Membership + كود الكارت
     data.ts             كل المحتوى: باقات، إضافات، كوبونات، جداول، قصص، صور
+    repository.ts       طبقة تخزين Supabase مع fallback محلي
+    supabase-admin.ts   Supabase Service Role server-only
     store.tsx           GymProvider: سلة الاشتراك، العضوية، المفضلات، الحجوزات
     storage.ts          usePersistentState / useClock / useHydrated
-    utils.ts            egp()، fmtDate()، isEGPhone()/EG_PHONE_RE، cx()…
-tests/                  49 اختبار (vitest) — بيزودي كل يوم
-docs/                   BACKEND-CONTRACT.md · DEPLOY-VERCEL.md · screenshots/
+    utils.ts             egp()، fmtDate()، isEGPhone()/EG_PHONE_RE، cx()…
+ tests/                  53 اختبار (vitest) — بيزودي كل يوم
+ docs/                   BACKEND-CONTRACT.md · DEPLOY-VERCEL.md · SUPABASE.md · screenshots/
 scripts/                mock-backend.mjs · make-transform-pairs.mjs · make-trainer-crops.mjs
 .github/workflows/ci.yml  typecheck + lint + vitest + build
 public/images/          hero + جيم + كوتشات + 6 صور قبل/بعد (1280×720)

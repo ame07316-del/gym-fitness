@@ -1,5 +1,7 @@
 import { isAdminRequest, NO_STORE_HEADERS } from "@/app/lib/api-security";
 import { checkRateLimit } from "@/app/lib/rate-limit";
+import { insertBooking, listBookings } from "@/app/lib/repository";
+import { isSupabaseConfigured } from "@/app/lib/supabase-admin";
 import { readJsonObject } from "@/app/lib/request";
 import { EG_PHONE_RE } from "@/app/lib/utils";
 import { NextResponse } from "next/server";
@@ -67,18 +69,38 @@ export async function POST(request: Request) {
     createdAt: typeof body.createdAt === "number" ? body.createdAt : Date.now(),
   };
 
+  if (isSupabaseConfigured) {
+    try {
+      const saved = await insertBooking(record);
+      return NextResponse.json(
+        { ok: true, booking: saved, message: `تم استلام طلب ${name} وهنتواصل معاك على ${phone}` },
+        { status: 201, headers: NO_STORE_HEADERS },
+      );
+    } catch {
+      return NextResponse.json({ error: "تعذر حفظ الحجز — جرّب مرة أخرى" }, { status: 503, headers: NO_STORE_HEADERS });
+    }
+  }
+
   store.unshift(record);
   if (store.length > MAX) store.length = MAX;
 
   return NextResponse.json(
     { ok: true, booking: record, queue: store.length, message: `تم استلام طلب ${name} وهنتواصل معاك على ${phone}` },
-    { status: 201 },
+    { status: 201, headers: NO_STORE_HEADERS },
   );
 }
 
 export async function GET(request: Request) {
   if (!isAdminRequest(request)) {
     return NextResponse.json({ error: "غير مصرح — يلزم رمز لوحة الإدارة" }, { status: 401, headers: NO_STORE_HEADERS });
+  }
+
+  if (isSupabaseConfigured) {
+    try {
+      return NextResponse.json(await listBookings(), { headers: NO_STORE_HEADERS });
+    } catch {
+      return NextResponse.json({ error: "تعذر قراءة الحجوزات" }, { status: 503, headers: NO_STORE_HEADERS });
+    }
   }
 
   return NextResponse.json(
