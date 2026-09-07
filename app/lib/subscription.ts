@@ -94,6 +94,45 @@ export function quoteOf(draft: Draft): Quote {
   };
 }
 
+/**
+ * تحقق صارم من مدخلات العميل قبل ما نحسب — بيستخدمه السيرفر.
+ * الفرق عن `quoteOf`: هنا أي id مش موجود بيرجّع **خطأ** بدل ما نرجع للافتراضي بصمت،
+ * عشان محدش يبعت باقة أو إضافة مش موجودة ويطلع بسعر غلط.
+ */
+export function parseDraft(input: {
+  planId?: unknown;
+  cycle?: unknown;
+  addonIds?: unknown;
+  coupon?: unknown;
+}): { draft: Draft; errors: Record<string, string> } {
+  const errors: Record<string, string> = {};
+
+  const planId = PLANS.find((p) => p.id === input.planId)?.id;
+  if (!planId) errors.planId = "الباقة دي مش موجودة";
+
+  const cycle = CYCLES.find((c) => c.id === input.cycle)?.id;
+  if (!cycle) errors.cycle = "مدة الاشتراك دي مش موجودة";
+
+  const rawAddons = Array.isArray(input.addonIds) ? input.addonIds : [];
+  if (rawAddons.length > ADDONS.length) errors.addonIds = "إضافات أكتر من اللازم";
+  const addonIds: string[] = [];
+  for (const id of rawAddons) {
+    if (typeof id !== "string" || !ADDONS.some((a) => a.id === id)) {
+      errors.addonIds = "فيه إضافة مش موجودة في القائمة";
+      break;
+    }
+    if (!addonIds.includes(id)) addonIds.push(id);
+  }
+
+  const rawCoupon = typeof input.coupon === "string" ? input.coupon.trim().toUpperCase().slice(0, 20) : "";
+  const coupon = rawCoupon || null;
+
+  return {
+    draft: { planId: planId ?? "pro", cycle: cycle ?? "monthly", addonIds, coupon },
+    errors,
+  };
+}
+
 export function addMonths(ts: number, months: number) {
   const d = new Date(ts);
   const day = d.getDate();
@@ -102,7 +141,7 @@ export function addMonths(ts: number, months: number) {
   return d.getTime();
 }
 
-export type SubStatus = "active" | "frozen" | "cancelled" | "expired";
+export type SubStatus = "pending" | "active" | "frozen" | "cancelled" | "expired";
 
 export type Membership = {
   orderId: string;
@@ -122,9 +161,12 @@ export type Membership = {
   autoRenew: boolean;
   frozenAt: number | null;
   frozenDaysUsed: number;
+  /** مرجع التحويل اللي كتبه العضو (رقم المحفظة/الإيصال) — مفيش أي بيانات بنكية */
+  paymentRef?: string | null;
 };
 
 export const statusLabel: Record<SubStatus, string> = {
+  pending: "بانتظار تأكيد الدفع",
   active: "نشط",
   frozen: "مجمّد مؤقتاً",
   cancelled: "ملغي",

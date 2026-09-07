@@ -377,7 +377,7 @@ export default function Pricing() {
                 </button>
                 <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-white/40">
                   <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  بدون بطاقة في الخطوة دي — الدفع بيتأكد مع الكاشير أو أونلاين، وتقدر تلغي في أي وقت قبل التفعيل.
+                  مفيش دفع بالفيزا ولا أي بيانات بطاقات — تحويل محفظة أو كاش في الفرع، وتقدر تلغي في أي وقت قبل التفعيل.
                 </p>
                 {selectedPlan && membership?.planId === selectedPlan.id && (
                   <p className="mt-3 rounded-xl border border-gold/30 bg-gold/10 px-3 py-2 text-[11px] font-bold text-gold">

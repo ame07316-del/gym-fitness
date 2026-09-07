@@ -69,6 +69,5 @@ export async function apiFetch<T = unknown>(path: string, init: FetchInit = {}):
 export const ENDPOINTS = {
   bookings: "/api/bookings",
   subscribe: "/api/subscribe",
-  pay: "/api/pay",
-  payConfirm: "/api/pay/confirm",
+  quote: "/api/quote",
 } as const;

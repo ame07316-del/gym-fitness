@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { POST as book, validateBooking } from "@/app/api/bookings/route";
 import { POST as subscribe } from "@/app/api/subscribe/route";
-import { GET as payHealth, POST as pay } from "@/app/api/pay/route";
-import { POST as confirm } from "@/app/api/pay/confirm/route";
+import { POST as quote } from "@/app/api/quote/route";
 import { isEGPhone } from "@/app/lib/utils";
+import { quoteOf } from "@/app/lib/subscription";
 
 /**
  * اختبارات العقد (docs/BACKEND-CONTRACT.md) على الهاندلرات المحلية نفسها —
@@ -60,28 +60,46 @@ describe("POST /api/bookings", () => {
   });
 });
 
-describe("POST /api/subscribe", () => {
+describe("POST /api/subscribe — السعر بيتحسب على السيرفر", () => {
   const order = {
-    orderId: "FZ-TEST01",
-    planName: "برو",
+    planId: "pro",
     cycle: "yearly",
-    months: 12,
-    addonIds: ["coach"],
+    addonIds: ["nutrition"],
     coupon: "FIT10",
-    total: 9603,
-    perMonth: 800,
-    payment: "card",
+    payment: "wallet",
+    paymentRef: "01012345678",
     member: { name: "منى خالد", phone: "01012345678", goal: "تنشيف" },
   };
 
-  it("201 + رقم فاتورة مشتق من الـ orderId", async () => {
+  /** نفس الحسبة اللي المفروض السيرفر يطلعها (الفلوس بتتخزن بالجنيه الصحيح) */
+  const q = quoteOf({ planId: "pro", cycle: "yearly", addonIds: ["nutrition"], coupon: "FIT10" });
+  const expected = { total: Math.round(q.total), perMonth: Math.round(q.perMonth) };
+
+  it("201 + رقم طلب من السيرفر + إجمالي محسوب + حالة pending", async () => {
     const res = await subscribe(post(order));
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.ok).toBe(true);
-    expect(body.order.orderId).toBe("FZ-TEST01");
-    expect(body.order.status).toBe("active");
-    expect(body.invoice).toBe("INV-FZ-TEST01");
+    expect(body.order.orderId).toMatch(/^FZ-/);
+    expect(body.order.status).toBe("pending"); // مايتفعلش غير بعد تأكيد الإدارة
+    expect(body.order.total).toBe(expected.total);
+    expect(body.order.perMonth).toBe(expected.perMonth);
+    expect(body.order.months).toBe(12);
+    expect(body.invoice).toBe(`INV-${body.order.orderId}`);
+  });
+
+  it("🔒 أي total/perMonth/months/endsAt جاي من العميل بيتتجاهل", async () => {
+    const res = await subscribe(post({ ...order, total: 1, perMonth: 1, months: 99, endsAt: Date.now() + 9e11 }));
+    const body = await res.json();
+    expect(body.order.total).toBe(expected.total);
+    expect(body.order.perMonth).toBe(expected.perMonth);
+    expect(body.order.months).toBe(12);
+    expect(body.order.endsAt).toBeLessThan(Date.now() + 400 * 86_400_000);
+  });
+
+  it("🔒 العميل مايقدرش يفرض رقم طلب (orderId) بتاعه", async () => {
+    const body = await (await subscribe(post({ ...order, orderId: "FZ-HACK" }))).json();
+    expect(body.order.orderId).not.toBe("FZ-HACK");
   });
 
   it("422 على بيانات عضو غلط (نفس شكل الـ fields)", async () => {
@@ -92,88 +110,48 @@ describe("POST /api/subscribe", () => {
     expect(body.fields.phone).toBeTruthy();
   });
 
-  it("422 على إجمالي مش منطقي", async () => {
-    expect((await subscribe(post({ ...order, total: 0 }))).status).toBe(422);
-    expect((await subscribe(post({ ...order, total: -50 }))).status).toBe(422);
+  it("422 على باقة/مدة/إضافة مش موجودة", async () => {
+    expect((await subscribe(post({ ...order, planId: "platinum" }))).status).toBe(422);
+    expect((await subscribe(post({ ...order, cycle: "weekly" }))).status).toBe(422);
+    expect((await subscribe(post({ ...order, addonIds: ["free-ferrari"] }))).status).toBe(422);
+  });
+
+  it("422 على كوبون غلط بدل ما يعدّي بسعر تاني", async () => {
+    const res = await subscribe(post({ ...order, coupon: "FREE100" }));
+    expect(res.status).toBe(422);
+    expect((await res.json()).fields.coupon).toBeTruthy();
+  });
+
+  it("422 على طريقة دفع مش متاحة (الفيزا اتشالت خالص)", async () => {
+    for (const payment of ["card", "install", "bitcoin"]) {
+      const res = await subscribe(post({ ...order, payment }));
+      expect(res.status).toBe(422);
+      expect((await res.json()).fields.payment).toBeTruthy();
+    }
   });
 });
 
-describe("POST /api/pay — سلوك البوابة", () => {
-  it("4242 → requires_action (3-D Secure) ومعاه OTP hint", async () => {
-    const res = await pay(post({ method: "card", amount: 9603, card: { number: "4242 4242 4242 4242" } }));
+describe("POST /api/quote — التسعيرة الرسمية", () => {
+  it("بترجّع نفس أرقام محرك التسعير", async () => {
+    const draft = { planId: "vip", cycle: "quarterly", addonIds: ["inbody"], coupon: null };
+    const res = await quote(post(draft));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.status).toBe("requires_action");
-    expect(body.brand).toBe("visa");
-    expect(body.last4).toBe("4242");
-    expect(body.otpHint).toBeTruthy();
-    expect(body.reference).toMatch(/^pi_s1_/);
+    const expected = quoteOf(draft as never);
+    expect(body.quote.total).toBe(expected.total);
+    expect(body.quote.vat).toBe(expected.vat);
+    expect(body.quote.months).toBe(3);
   });
 
-  it("أرقام الرفض → 402 و code الصح والـ reference لسه راجع", async () => {
-    const res = await pay(post({ method: "card", amount: 100, card: { number: "4000 0000 0000 0002" } }));
-    expect(res.status).toBe(402);
-    const body = await res.json();
-    expect(body.ok).toBe(false);
-    expect(body.code).toBe("card_declined");
-    expect(body.message).toContain("card_declined");
+  it("422 على باقة مش موجودة", async () => {
+    const res = await quote(post({ planId: "ghost", cycle: "monthly", addonIds: [] }));
+    expect(res.status).toBe(422);
+    expect((await res.json()).fields.planId).toBeTruthy();
   });
 
-  it("Luhn فاشل server-side → invalid_number", async () => {
-    const body = await (await pay(post({ method: "card", amount: 100, card: { number: "1234 5678 9012 3456" } }))).json();
-    expect(body.code).toBe("invalid_number");
-  });
-
-  it("mada بيتعرف في الشعار", async () => {
-    const body = await (await pay(post({ method: "card", amount: 570, card: { number: "5080 1234 1234 1234" } }))).json();
-    expect(body.brand).toBe("mada");
-  });
-
-  it("محفظة/كاش → succeeded من غير 3DS", async () => {
-    const wallet = await (await pay(post({ method: "wallet", amount: 570 }))).json();
-    expect(wallet.status).toBe("succeeded");
-    const cash = await (await pay(post({ method: "cash", amount: 570 }))).json();
-    expect(cash.status).toBe("succeeded");
-    expect(cash.message).toContain("48");
-  });
-
-  it("من غير amount → 422", async () => {
-    expect((await pay(post({ method: "card", card: { number: "4242424242424242" } }))).status).toBe(422);
-  });
-
-  it("GET /api/pay = health بيقول sandbox", async () => {
-    const body = await (await payHealth()).json();
-    expect(body.sandbox).toBe(true);
-    expect(body.provider).toBe("sandbox");
-  });
-});
-
-describe("POST /api/pay/confirm — خطوة الـ OTP", () => {
-  const begin = async () => {
-    const body = await (await pay(post({ method: "card", amount: 2870, card: { number: "5555 5555 5555 4444" } }))).json();
-    return body.reference as string;
-  };
-
-  it("رمز 000000 → 401 (اختبار الفشل الأول)", async () => {
-    const reference = await begin();
-    const res = await confirm(post({ reference, code: "000000" }));
-    expect(res.status).toBe(401);
-    expect((await res.json()).status).toBe("requires_action");
-  });
-
-  it("رمز صحيح → 200 succeeded، والتاني بيطلع «متأكد عليها بالفعل»", async () => {
-    const reference = await begin();
-    const ok = await (await confirm(post({ reference, code: "483920" }))).json();
-    expect(ok.status).toBe("succeeded");
-    expect(ok.amount).toBe(2870);
-    const again = await confirm(post({ reference, code: "111111" }));
-    expect(again.status).toBe(200);
-    expect((await again.json()).message).toContain("بالفعل");
-  });
-
-  it("reference غير موجود → 404 برسالة تفهم المستخدم يبدأ من جديد", async () => {
-    const res = await confirm(post({ reference: "pi_s1_مفبرك", code: "123456" }));
-    expect(res.status).toBe(404);
-    expect((await res.json()).message).toContain("من جديد");
+  it("بترجّع سبب رفض الكوبون من غير ما تكسر التسعيرة", async () => {
+    const body = await (await quote(post({ planId: "basic", cycle: "monthly", addonIds: [], coupon: "NEW25" }))).json();
+    expect(body.quote.couponError).toBeTruthy();
+    expect(body.quote.couponDiscount).toBe(0);
   });
 });

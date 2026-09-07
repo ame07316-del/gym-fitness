@@ -147,7 +147,7 @@ export default function Booking() {
               </ul>
               <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-white/10 pt-5 text-[11px] text-white/50">
                 <Sparkles className="h-3.5 w-3.5 text-gold" />
-                من غير بطاقة ائتمان · من غير التزام · إلغاء الحجز بضغطة
+                من غير أي بيانات بنكية · من غير التزام · إلغاء الحجز بضغطة
               </div>
               {hasMembership && (
                 <button onClick={() => setPanelOpen(true)} className="mt-4 w-full rounded-xl border border-mint/35 bg-mint/10 py-2.5 text-xs font-black text-mint transition hover:bg-mint/20">

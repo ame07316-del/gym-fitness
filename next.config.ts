@@ -17,13 +17,20 @@ const ONLY = (process.env.BACKEND_ONLY ?? "")
 
 function proxyRules() {
   if (!BACKEND) return [];
-  if (ONLY.length === 0) return [{ source: "/api/:path*", destination: `${BACKEND}/api/:path*` }];
-  return ONLY.map((p) => ({ source: `/api/${p}`, destination: `${BACKEND}/api/${p}` }));
+  // ⚠️ مسارات لوحة الإدارة (`/api/admin/*`) بتفضل محلية دايمًا — لأن الجلسات
+  // والصلاحيات متخزنة في قاعدة البيانات بتاعة نكست نفسها، فلو اتبعتت للباك إند
+  // الخارجي هتلاقي 404 والمستخدم مش قادر يدخل.
+  if (ONLY.length === 0) return [{ source: "/api/:path((?!admin/).*)", destination: `${BACKEND}/api/:path` }];
+  return ONLY.filter((p) => p !== "admin").map((p) => ({ source: `/api/${p}`, destination: `${BACKEND}/api/${p}` }));
 }
 
 const nextConfig: NextConfig = {
   // السماح لمعاينة التطوير (host proxy خارجي) بالحصول على أصول الـ dev server
   allowedDevOrigins: ["*.e2b.app", "**.e2b.app", "localhost"],
+  // better-sqlite3 موديول native — لازم يفضل خارج الـ bundle
+  serverExternalPackages: ["better-sqlite3"],
+  // مانسربش نسخة الفريمورك في الترويسات
+  poweredByHeader: false,
   images: {
     qualities: [60, 75, 85],
     formats: ["image/avif", "image/webp"],

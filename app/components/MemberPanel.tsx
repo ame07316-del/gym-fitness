@@ -113,7 +113,7 @@ export default function MemberPanel() {
                   باقة {membership.planName} · <span className="num">{membership.frozenDaysUsed}</span> / {FREEZE_DAYS_LIMIT} يوم تجميد مستهلك
                 </p>
               </div>
-              <Chip tone={membership.status === "active" ? "mint" : membership.status === "frozen" ? "gold" : "brand"}>
+              <Chip tone={membership.status === "active" ? "mint" : membership.status === "frozen" || membership.status === "pending" ? "gold" : "brand"}>
                 {statusLabel[membership.status]}
               </Chip>
             </div>
@@ -152,6 +152,11 @@ export default function MemberPanel() {
                   transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
                 />
               </div>
+              {membership.status === "pending" && (
+                <p className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-gold">
+                  <Bell className="h-3.5 w-3.5" /> لسه بنستنى تأكيد الدفع — العضوية هتشتغل أول ما الإدارة تراجع التحويل.
+                </p>
+              )}
               {daysLeft <= 7 && membership.status === "active" && (
                 <p className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-gold">
                   <Bell className="h-3.5 w-3.5" /> العضوية هتخلص قريب — جدّد دلوقتي عشان متوقفش.
@@ -162,7 +167,14 @@ export default function MemberPanel() {
 
           {/* أزرار التحكم */}
           <div className="grid grid-cols-2 gap-2">
-            <ActionBtn icon={RefreshCw} label="تجديد الفترة" onClick={doRenew} primary disabled={busy} sub={`+${membership.months} شهر`} />
+            <ActionBtn
+              icon={RefreshCw}
+              label="تجديد الفترة"
+              onClick={doRenew}
+              primary
+              disabled={busy || membership.status === "pending"}
+              sub={membership.status === "pending" ? "بعد تأكيد الدفع" : `+${membership.months} شهر`}
+            />
             {membership.status === "frozen" ? (
               <ActionBtn icon={Play} label="إلغاء التجميد" onClick={toggleFreeze} sub="هترجع فوراً" />
             ) : (
@@ -171,7 +183,7 @@ export default function MemberPanel() {
                 label="تجميد الاشتراك"
                 onClick={toggleFreeze}
                 sub={`فاضل ${FREEZE_DAYS_LIMIT - membership.frozenDaysUsed} يوم`}
-                disabled={membership.frozenDaysUsed >= FREEZE_DAYS_LIMIT}
+                disabled={membership.frozenDaysUsed >= FREEZE_DAYS_LIMIT || membership.status === "pending"}
               />
             )}
             <ActionBtn icon={Snowflake} label="تحويل لباقة أعلى" onClick={() => { setPanelOpen(false); document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" }); }} sub="الفرق بيحسب نسبة" />
@@ -342,7 +354,16 @@ function Line({ k, v, good }: { k: string; v: string; good?: boolean }) {
 }
 
 function payLabel(p: string) {
-  return { card: "فيزا / ماستركارد", wallet: "محفظة إلكترونية", install: "تقسيط 3 دفعات", cash: "كاش في الفرع" }[p] ?? p;
+  return (
+    {
+      wallet: "فودافون كاش / إنستا باي",
+      cash: "كاش في الفرع",
+      // قيم قديمة ممكن تكون لسه متخزنة في متصفح عضو اشترك قبل ما نلغي الدفع بالكروت —
+      // بنترجمها بدل ما تظهر إنجليزي خام في كارت العضوية
+      card: "دفع سابق بالبطاقة (اتوقفت)",
+      install: "تقسيط سابق (اتوقف)",
+    }[p] ?? "غير محدد"
+  );
 }
 
 function ActionBtn({

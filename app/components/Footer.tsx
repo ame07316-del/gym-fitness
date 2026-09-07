@@ -6,6 +6,7 @@ import { ArrowUp, Clock, Mail, MapPin, Navigation, Phone } from "lucide-react";
 import { GYM, NAV, PLANS } from "@/app/lib/data";
 import { cx } from "@/app/lib/utils";
 import { useGym } from "@/app/lib/store";
+import { useHydrated } from "@/app/lib/storage";
 import { useToast } from "@/app/components/ui/Toast";
 
 const SOCIALS = [
@@ -19,11 +20,21 @@ const SOCIALS = [
   { name: "يوتيوب", href: GYM.youtube, path: "M23 12s0-3.6-.46-5.32a2.77 2.77 0 0 0-1.95-1.96C18.87 4.25 12 4.25 12 4.25s-6.87 0-8.59.47A2.77 2.77 0 0 0 1.46 6.7C1 8.42 1 12 1 12s0 3.6.46 5.32c.25.94.97 1.67 1.95 1.96 1.72.45 8.59.45 8.59.45s6.87 0 8.59-.47a2.77 2.77 0 0 0 1.95-1.95C23 15.6 23 12 23 12Zm-13 3.42V8.6l5.83 3.4-5.83 3.42Z" },
 ];
 
+/**
+ * سنة الحقوق: الصفحة بتترندر ستاتيك، فلو استخدمنا `new Date()` وقت الرسم
+ * السيرفر هيكتب سنة البناء والمتصفح هيكتب سنة جهاز الزائر → **hydration mismatch**
+ * أول يناير أو مع أي جهاز ساعته مضبوطة قدام. الحل: قيمة ثابتة في رندر السيرفر
+ * وأول رندر في المتصفح (فالاتنين بيتطابقوا)، وبعد الهيدريشن بنحدّثها للسنة الحقيقية.
+ */
+const COPYRIGHT_SINCE = 2026;
+
 export default function Footer() {
   const [email, setEmail] = useState("");
   const [err, setErr] = useState("");
   const toast = useToast();
   const { openCheckout, requestBooking } = useGym();
+  const hydrated = useHydrated();
+  const year = hydrated ? new Date().getFullYear() : COPYRIGHT_SINCE;
 
   const subscribe = (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,7 +178,7 @@ export default function Footer() {
 
       <div className="border-t border-line/70">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-5 text-center text-[11px] text-white/35 sm:flex-row sm:text-right">
-          <p>© {new Date().getFullYear()} FitZone Pro — جميع الحقوق محفوظة.</p>
+          <p>© {year} FitZone Pro — جميع الحقوق محفوظة.</p>
           <p className="flex items-center gap-3">
             <a href="#faq" className="transition hover:text-white/70">الشروط والأحكام</a>
             <span className="text-white/15">|</span>

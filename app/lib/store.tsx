@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { useClock, useHydrated, usePersistentState } from "./storage";
-import { addMonths, quoteOf, type Draft, type Membership } from "./subscription";
+import { addMonths, quoteOf, type Draft, type Membership, type SubStatus } from "./subscription";
 import { FREEZE_DAYS_LIMIT } from "./data";
 import { apiFetch, ENDPOINTS } from "./api";
 import { daysBetween, uid } from "./utils";
@@ -28,7 +28,13 @@ type Ctx = {
   memberUiReady: boolean;
   daysLeft: number;
   progress: number;
-  confirmSubscription: (m: Omit<Membership, "orderId" | "startedAt" | "endsAt" | "status" | "autoRenew" | "frozenAt" | "frozenDaysUsed">) => Promise<Membership | null>;
+  /**
+   * بيبعت اختيارات العضو للسيرفر — **من غير أي مبالغ**.
+   * السيرفر هو اللي بيحسب الإجمالي والمدة وتاريخ الانتهاء وبيرجّع رقم الطلب.
+   */
+  confirmSubscription: (
+    m: Pick<Membership, "planId" | "cycle" | "addonIds" | "coupon" | "member" | "payment" | "paymentRef">,
+  ) => Promise<Membership | null>;
   renew: () => void;
   toggleFreeze: () => void;
   cancelMembership: () => void;
@@ -121,29 +127,77 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
 
   const confirmSubscription: Ctx["confirmSubscription"] = useCallback(
     async (base) => {
+      type OrderResponse = {
+        order?: {
+          orderId?: string;
+          planName?: string;
+          months?: number;
+          total?: number;
+          perMonth?: number;
+          status?: SubStatus;
+          endsAt?: number;
+        };
+        invoice?: string;
+        message?: string;
+      };
+
+      const res = await apiFetch<OrderResponse>(ENDPOINTS.subscribe, {
+        method: "POST",
+        body: {
+          planId: base.planId,
+          cycle: base.cycle,
+          addonIds: base.addonIds,
+          coupon: base.coupon,
+          payment: base.payment,
+          paymentRef: base.paymentRef ?? null,
+          member: base.member,
+        },
+      });
+
+      // السيرفر رفض البيانات (كوبون غلط، باقة مش موجودة…) — مفيش اشتراك محلي بيتعمل
+      if (!res.ok && res.status >= 400 && res.status < 500) {
+        toast({ kind: "error", title: "الطلب مرفض", body: res.error ?? "راجع بيانات الاشتراك" });
+        return null;
+      }
+
+      // نسخة احتياطية للعرض بس لو السيرفر مش متاح — الأرقام الرسمية دايمًا من السيرفر
+      const local = quoteOf({ planId: base.planId, cycle: base.cycle, addonIds: base.addonIds, coupon: base.coupon });
+      const order = res.data?.order;
+      const startedAt = Date.now();
+      const months = order?.months ?? local.months;
+
       const rec: Membership = {
         ...base,
-        orderId: uid("FZ"),
-        startedAt: Date.now(),
-        endsAt: addMonths(Date.now(), base.months),
-        status: "active",
+        orderId: order?.orderId ?? uid("FZ"),
+        planName: order?.planName ?? local.planName,
+        months,
+        total: order?.total ?? local.total,
+        perMonth: order?.perMonth ?? local.perMonth,
+        startedAt,
+        endsAt: order?.endsAt ?? addMonths(startedAt, months),
+        status: order?.status ?? "pending",
         autoRenew: base.cycle !== "monthly",
         frozenAt: null,
         frozenDaysUsed: 0,
       };
-      const res = await apiFetch<{ order?: { orderId?: string }; invoice?: string }>(ENDPOINTS.subscribe, { method: "POST", body: rec });
+
       if (!res.ok) {
         toast({
           kind: "warn",
-          title: "الاشتراك اتسجّل على جهازك",
-          body: res.error ? `${res.error} — بياناتك محفوظة ومعاهالك مرجع الطلب ${rec.orderId}.` : "الباك إند مش متاح دلوقتي.",
+          title: "الطلب اتسجّل على جهازك",
+          body: res.error ? `${res.error} — كلّمنا على الواتساب برقم الطلب ${rec.orderId}.` : "الباك إند مش متاح دلوقتي.",
         });
       } else if (res.data?.invoice) {
-        toast({ kind: "info", title: `فاتورة ${res.data.invoice}`, body: "هنبعتهالك على الواتساب بعد تأكيد الدفع." });
+        toast({ kind: "info", title: `طلب رقم ${rec.orderId}`, body: "هنبعتلك الفاتورة على الواتساب بعد تأكيد الدفع." });
       }
+
       setMembership(rec);
       setHistory((h) => [rec, ...h].slice(0, 12));
-      toast({ kind: "success", title: `تم تفعيل عضوية ${rec.planName} 🎉`, body: `رقم الطلب ${rec.orderId}` });
+      toast({
+        kind: "success",
+        title: `تم تسجيل طلب باقة ${rec.planName} 🎉`,
+        body: rec.status === "pending" ? "العضوية هتتفعّل أول ما الإدارة تأكد استلام الفلوس." : `رقم الطلب ${rec.orderId}`,
+      });
       return rec;
     },
     [setHistory, setMembership, toast],
@@ -233,6 +287,8 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
       const res = await apiFetch<{ booking?: { id?: string }; message?: string }>(ENDPOINTS.bookings, { method: "POST", body: rec });
       if (res.ok) {
         rec.status = "confirmed";
+        // الـ id بيتولّد على السيرفر — بنمشي بيه عشان الكود اللي عند العميل يطابق اللي في الداتابيز
+        if (res.data?.booking?.id) rec.id = res.data.booking.id;
       } else {
         toast({
           kind: "warn",
@@ -268,7 +324,7 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
 
   const value: Ctx = {
     membership: membership ? { ...membership, status: effectiveStatus ?? membership.status } : null,
-    hasMembership: !!membership && (effectiveStatus === "active" || effectiveStatus === "frozen"),
+    hasMembership: !!membership && (effectiveStatus === "active" || effectiveStatus === "frozen" || effectiveStatus === "pending"),
     memberUiReady: hydrated,
     daysLeft,
     progress,
