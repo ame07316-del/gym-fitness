@@ -84,13 +84,14 @@ describe("POST /api/bookings", () => {
 describe("POST /api/subscribe", () => {
   const order = {
     orderId: "FZ-TEST01",
+    planId: "pro",
     planName: "برو",
     cycle: "yearly",
     months: 12,
-    addonIds: ["coach"],
+    addonIds: [],
     coupon: "FIT10",
-    total: 9603,
-    perMonth: 800,
+    total: 8643.02,
+    perMonth: 720.25,
     payment: "card",
     member: { name: "منى خالد", phone: "01012345678", goal: "تنشيف" },
   };

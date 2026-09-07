@@ -104,6 +104,14 @@ npm run test:watch
 | `tests/card.test.ts` | `luhnValid`، `detectBrand` (Visa/MC/Amex/mada)، `expValid`، `validateCard` وأخطاء الحقول |
 | `tests/api-contract.test.ts` | بينادي الـ route handlers نفسها: 201/200/402/401/404/422 وشكل `fields` — **نفس الاختبارات اللي لازم أي باك إند خارجي يعديها** |
 
+## 🔐 ملاحظات الأمان في الديمو
+
+- إحصائيات الإدارة والحجوزات في `GET /api/bookings` و`GET /api/subscribe` محمية بـ `ADMIN_API_TOKEN` ولا تُخزّن في cache.
+- كل نداءات الكتابة عليها rate limit مبدئي، وعمليات الدفع المعلقة لها عمر وحد أقصى في الذاكرة.
+- الباقة والإضافات والكوبون والإجمالي يعاد حسابهم على السيرفر قبل إنشاء الاشتراك؛ قيمة العميل وحدها لا تكفي.
+- `PAYMENT_SECRET` (لو اتربطت بوابة حقيقية) سيرفر-سايد فقط — ممنوع تسميته `NEXT_PUBLIC_*`.
+- ده يظل Prototype: قبل فلوس حقيقية استخدم قاعدة بيانات، بوابة دفع server-side، rate limiting على مستوى WAF، وAuthentication حقيقي للإدارة.
+
 ## 🔌 ربط الباك إند
 
 كل نداءات السيرفر بتخرج من ملف واحد: **`app/lib/api.ts`** (`apiFetch` + `ENDPOINTS`).

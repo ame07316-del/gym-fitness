@@ -1,3 +1,5 @@
+import { NO_STORE_HEADERS } from "@/app/lib/api-security";
+import { checkRateLimit } from "@/app/lib/rate-limit";
 import { readJsonObject } from "@/app/lib/request";
 import { NextResponse } from "next/server";
 
@@ -65,6 +67,14 @@ const DECLINES: Record<string, string> = {
 const pretty = (n: string) => n.slice(-4);
 
 export async function POST(request: Request) {
+  const rate = checkRateLimit(request, "pay", 60);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: "محاولات دفع كثيرة — جرّب مرة أخرى بعد قليل" },
+      { status: 429, headers: { ...NO_STORE_HEADERS, "Retry-After": String(rate.retryAfter) } },
+    );
+  }
+
   const parsed = await readJsonObject(request);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
   const body = parsed.body;

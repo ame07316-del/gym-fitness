@@ -1,3 +1,5 @@
+import { NO_STORE_HEADERS } from "@/app/lib/api-security";
+import { checkRateLimit } from "@/app/lib/rate-limit";
 import { readJsonObject } from "@/app/lib/request";
 import { NextResponse } from "next/server";
 import { intents } from "../route";
@@ -6,6 +8,14 @@ export const dynamic = "force-dynamic";
 
 /** تأكيد 3-D Secure للعملية المعلقة (نفس شكل confirm في Stripe/Paymob) */
 export async function POST(request: Request) {
+  const rate = checkRateLimit(request, "pay-confirm", 30);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: "محاولات تحقق كثيرة — جرّب مرة أخرى بعد قليل" },
+      { status: 429, headers: { ...NO_STORE_HEADERS, "Retry-After": String(rate.retryAfter) } },
+    );
+  }
+
   const parsed = await readJsonObject(request);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
   const body = parsed.body;

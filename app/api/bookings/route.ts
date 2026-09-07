@@ -1,4 +1,5 @@
 import { isAdminRequest, NO_STORE_HEADERS } from "@/app/lib/api-security";
+import { checkRateLimit } from "@/app/lib/rate-limit";
 import { readJsonObject } from "@/app/lib/request";
 import { EG_PHONE_RE } from "@/app/lib/utils";
 import { NextResponse } from "next/server";
@@ -38,6 +39,14 @@ export function validateBooking(body: Record<string, unknown>) {
 }
 
 export async function POST(request: Request) {
+  const rate = checkRateLimit(request, "bookings", 30);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: "محاولات كثيرة — جرّب مرة أخرى بعد قليل" },
+      { status: 429, headers: { ...NO_STORE_HEADERS, "Retry-After": String(rate.retryAfter) } },
+    );
+  }
+
   const parsed = await readJsonObject(request);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
   const body = parsed.body;

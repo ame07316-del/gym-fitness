@@ -38,13 +38,15 @@ BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← ال
 { "orderId": "FZ-2026-K3JD22", "planId": "pro", "planName": "برو", "cycle": "quarterly",
   "months": 3, "addonIds": ["coach","nutrition"], "coupon": "FIT10",
   "member": { "name": "منى خالد", "phone": "01099999999", "goal": "لياقة عامة وصحة" },
-  "payment": "card", "total": 2870, "perMonth": 956,
+  "payment": "card", "total": 4087.58, "perMonth": 1362.53,
   "startedAt": 1788601971936, "endsAt": 1870141971936, "status": "active",
   "autoRenew": true, "frozenAt": null, "frozenDaysUsed": 0 }
 
 // 201
 { "ok": true, "order": { "orderId": "FZ-2026-K3JD22", "status": "active" }, "invoice": "INV-FZ-2026-K3JD22" }
 ```
+> الـ Route Handler يعيد حساب الباقة والمدة والإضافات والكوبون والإجمالي على السيرفر؛ لو `total` القادم من المتصفح مختلف يرجع `422` بدل تفعيل اشتراك بقيمة مزورة.
+
 `GET /api/subscribe` → إحصائيات (`total`, `revenue`, `byPlan`) للداشبورد. المسار خاص: لازم `Authorization: Bearer $ADMIN_API_TOKEN`، وبدون التوكن يرجع `401`.
 
 `GET /api/bookings` → الصفوف الأخيرة للداشبورد، بنفس حماية `ADMIN_API_TOKEN` (بدونها `401`).
@@ -81,7 +83,8 @@ BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← ال
 ### قواعد الفيلدز المستخدمة في الواجهة
 - الاسم: `trim().length >= 3`
 - الموبايل: `/^(?:\+?2|002)?01[0-9]{9}$/` (المسافات والشرطات بتتشال الأول، و`+2`/`002` اختيارية)
-- القيمة: `total > 0` · `months` بين 1 و24 · `addonIds` مصفوفة ≤ 12 عنصر
+- الاشتراك: `planId` و`cycle` و`addonIds` لازم يكونوا من القوائم المعروفة؛ السيرفر يشتق `months` ويعيد حساب `total` و`perMonth`، ولا يثق في قيمة العميل.
+- `addonIds` مصفوفة ≤ 12 عنصر، وطريقة الدفع واحدة من `card|wallet|install|cash`.
 - `code` للـ OTP: 6 أرقام
 
 ## 3) سكيل البوكسي في Laravel
