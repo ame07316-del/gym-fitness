@@ -2,7 +2,7 @@ import { NO_STORE_HEADERS } from "@/app/lib/api-security";
 import { checkRateLimit } from "@/app/lib/rate-limit";
 import { readJsonObject } from "@/app/lib/request";
 import { NextResponse } from "next/server";
-import { intents } from "../route";
+import { getIntent, intents } from "../route";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
   const reference = typeof body.reference === "string" ? body.reference : "";
   const code = typeof body.code === "string" ? body.code.trim() : "";
-  const intent = intents.get(reference);
+  const intent = getIntent(reference);
 
   if (!intent) {
     return NextResponse.json(

@@ -104,6 +104,10 @@ describe("POST /api/subscribe", () => {
     expect(body.order.orderId).toBe("FZ-TEST01");
     expect(body.order.status).toBe("active");
     expect(body.invoice).toBe("INV-FZ-TEST01");
+
+    const duplicate = await subscribe(post(order));
+    expect(duplicate.status).toBe(200);
+    expect((await duplicate.json()).order.member).toBeUndefined();
   });
 
   it("422 على بيانات عضو غلط (نفس شكل الـ fields)", async () => {

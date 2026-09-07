@@ -16,8 +16,18 @@ const PROVIDER = process.env.NEXT_PUBLIC_PAYMENT_PROVIDER ?? "sandbox";
 type Intent = { reference: string; amount: number; status: "requires_action" | "succeeded" | "failed"; createdAt: number };
 export const intents = new Map<string, Intent>();
 
-const INTENT_TTL_MS = 15 * 60_000;
+export const INTENT_TTL_MS = 15 * 60_000;
 const MAX_INTENTS = 1_000;
+
+export function getIntent(reference: string) {
+  const intent = intents.get(reference);
+  if (!intent) return undefined;
+  if (Date.now() - intent.createdAt > INTENT_TTL_MS) {
+    intents.delete(reference);
+    return undefined;
+  }
+  return intent;
+}
 
 /** Keep the in-memory sandbox bounded when the public demo is hammered. */
 function pruneIntents(now = Date.now()) {

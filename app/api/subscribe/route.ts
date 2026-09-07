@@ -94,8 +94,24 @@ export async function POST(request: Request) {
   const orderId = suppliedId || `FZ-${Date.now().toString(36).toUpperCase()}`;
   const existing = orders.find((order) => order.orderId === orderId);
   if (existing) {
+    // Idempotent retries must not become a way to read another member's PII.
+    const publicOrder = {
+      orderId: existing.orderId,
+      planId: existing.planId,
+      planName: existing.planName,
+      cycle: existing.cycle,
+      months: existing.months,
+      addonIds: existing.addonIds,
+      coupon: existing.coupon,
+      total: existing.total,
+      perMonth: existing.perMonth,
+      payment: existing.payment,
+      status: existing.status,
+      createdAt: existing.createdAt,
+      endsAt: existing.endsAt,
+    };
     return NextResponse.json(
-      { ok: true, order: existing, invoice: `INV-${existing.orderId}`, message: `الطلب ${existing.orderId} متسجل بالفعل` },
+      { ok: true, order: publicOrder, invoice: `INV-${existing.orderId}`, message: `الطلب ${existing.orderId} متسجل بالفعل` },
       { status: 200, headers: NO_STORE_HEADERS },
     );
   }
