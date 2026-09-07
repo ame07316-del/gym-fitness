@@ -120,7 +120,7 @@ npm run test:watch
 | المتغير (في `.env.local`) | بيعمل إيه |
 | --- | --- |
 | `BACKEND_URL=http://127.0.0.1:8000` | كل الطلبات على `/api/*` بتتوجه لباك إندك **قبل** هاندلرات نكست |
-| `BACKEND_ONLY=bookings,subscribe,pay` | يسيّب باقي المسارات لهاندلرات نكست |
+| `BACKEND_ONLY=bookings,subscribe,pay,pay/confirm` | يسيّب باقي المسارات لهاندلرات نكست |
 | `NEXT_PUBLIC_API_BASE=https://api…` | النداء يطلع من المتصفح مباشرة (يحتاج CORS) |
 | الاتنين فاضيين | الموقع شغال كامل على هاندلرات نكست — جاهز للعرض للعميل |
 

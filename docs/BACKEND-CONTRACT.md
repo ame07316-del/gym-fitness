@@ -7,7 +7,7 @@
 ```bash
 # .env.local
 BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← الأنسب (من غير CORS)
-# BACKEND_ONLY=bookings,subscribe           # اختياري: البروكسي للمسارات دي بس
+# BACKEND_ONLY=bookings,subscribe,pay,pay/confirm  # اختياري: البروكسي للمسارات دي بس
 # NEXT_PUBLIC_PAYMENT_PROVIDER=paymob       # لما تخلص شيت مفاتيح البوابة الحقيقية
 ```
 
