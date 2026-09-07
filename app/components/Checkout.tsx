@@ -69,10 +69,14 @@ export default function Checkout() {
     else toast({ kind: "error", title: "راجع البيانات", body: "فيه خانة أو اتنين محتاجة تعديل." });
   };
 
-  const finish = async () => {
+  const finish = async (paymentRef?: string | null) => {
     setLoading(true);
     setPayPhase("auth");
+    const brand = pay === "card" ? detectBrand(card.number) : null;
     const rec = await confirmSubscription({
+      paymentRef: paymentRef ?? null,
+      cardBrand: brand,
+      cardLast4: pay === "card" ? card.number.replace(/\D/g, "").slice(-4) : null,
       planId: draft.planId,
       planName: quote.planName,
       cycle: draft.cycle,
@@ -138,7 +142,7 @@ export default function Checkout() {
       toast({ kind: "error", title: "العملية اترفضت", body: res.message });
       return;
     }
-    await finish();
+    await finish(res.reference);
   };
 
   const verifyOtp = async () => {
@@ -156,7 +160,7 @@ export default function Checkout() {
       return;
     }
     setPayMsg(res.message);
-    await finish();
+    await finish(res.reference || intent);
   };
 
   return (

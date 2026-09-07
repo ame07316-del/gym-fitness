@@ -22,7 +22,12 @@ export type PayResult = {
 import { apiFetch, ENDPOINTS, HAS_EXTERNAL_BACKEND } from "./api";
 
 export const PROVIDER = process.env.NEXT_PUBLIC_PAYMENT_PROVIDER ?? "sandbox";
-export const IS_SANDBOX = PROVIDER === "sandbox" || !process.env.NEXT_PUBLIC_PAYMENT_SECRET;
+/**
+ * ⚠️ ملحوظة أمان: مفتاح البوابة **ما ينفعش** يبقى `NEXT_PUBLIC_*` لأن أي متغير بالبادئة دي
+ * بيتحقن في جافاسكريبت المتصفح ويقدر أي حد يقراه. المفتاح بيفضل سيرفر-سايد (`PAYMENT_SECRET`)
+ * والمتصفح بيعرف بس اسم مزوّد الخدمة.
+ */
+export const IS_SANDBOX = PROVIDER === "sandbox";
 
 const digits = (v: string) => v.replace(/\D/g, "");
 
@@ -121,9 +126,17 @@ export async function authorize(input: {
   description?: string;
 }): Promise<PayResult> {
   const local = simulate(input);
+  // بنبعت أقل قدر ممكن من بيانات الكارت: الرقم بس للتحقق من Luhn/الرفض.
+  // الـ CVV واسم حامل البطاقة عمرهم ما بيخرجوا من المتصفح، ومفيش حاجة منهم بتتخزن.
   const res = await apiFetch<PayResult>(ENDPOINTS.pay, {
     method: "POST",
-    body: { ...input, provider: PROVIDER },
+    body: {
+      method: input.method,
+      amount: input.amount,
+      description: input.description,
+      provider: PROVIDER,
+      card: input.card ? { number: digits(input.card.number) } : undefined,
+    },
   });
   // 200 = مقبول · 402 = البنك رفض — الاتنين قرار البنك في الرسالة
   if (res.ok || res.status === 402) return { ...(res.data as PayResult), provider: res.data?.provider ?? PROVIDER };

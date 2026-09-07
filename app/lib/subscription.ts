@@ -122,6 +122,10 @@ export type Membership = {
   autoRenew: boolean;
   frozenAt: number | null;
   frozenDaysUsed: number;
+  /* مرجع عملية الدفع + شعار الكارت وآخر 4 أرقام — مفيش رقم كارت كامل في أي مكان */
+  paymentRef?: string | null;
+  cardBrand?: string | null;
+  cardLast4?: string | null;
 };
 
 export const statusLabel: Record<SubStatus, string> = {

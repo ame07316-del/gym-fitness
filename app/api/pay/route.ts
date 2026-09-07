@@ -1,19 +1,22 @@
-import { NextResponse } from "next/server";
+import { INTENT_TTL_MS, openIntentsCount, putIntent, type Intent } from "@/app/lib/intents";
+import { hitRateLimit } from "@/app/lib/db/rate-limit";
+import { clientIp, errorJson, json, readJson } from "@/app/lib/http";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 /**
  * نقطة دفع تجريبية (Sandbox).
  * المنطق هنا مطابق لسلوك بوابات الدفع: Luhn، قائمة رفض، و 3-D Secure.
- * في الإنتاج: استبدل جسم POST باستدعاء Paymob / Fawry / Stripe Invoice،
+ * في الإنتاج: استبدل جسم POST باستدعاء Paymob / Fawry / Stripe،
  * وخزّن الـ intent id في الداتابيز. شكل الرد (PayResult) مايتغيرش.
+ *
+ * أمان: رقم الكارت بيتقرا في الميموري، بيتحسب عليه Luhn، وبيتنسي.
+ * مفيش تسجيل في اللوج ومفيش تخزين — اللي بيتخزن الشعار وآخر 4 أرقام بس.
  */
-const PROVIDER = process.env.NEXT_PUBLIC_PAYMENT_PROVIDER ?? "sandbox";
+const PROVIDER = process.env.PAYMENT_PROVIDER ?? process.env.NEXT_PUBLIC_PAYMENT_PROVIDER ?? "sandbox";
 
-type Intent = { reference: string; amount: number; status: "requires_action" | "succeeded" | "failed"; createdAt: number };
-export const intents = new Map<string, Intent>();
-
-const digits = (v: unknown) => (typeof v === "string" ? v.replace(/\D/g, "") : "");
+const digits = (v: unknown) => (typeof v === "string" ? v.replace(/\D/g, "").slice(0, 19) : "");
 
 function luhnValid(n: string) {
   if (n.length < 13 || n.length > 19) return false;
@@ -46,34 +49,47 @@ const DECLINES: Record<string, string> = {
   "4000000000006051": "incorrect_cvc",
 };
 
-const pretty = (n: string) => n.slice(-4);
+const MAX_AMOUNT = 1_000_000;
 
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "JSON غير صالح" }, { status: 400 });
-  }
+  const ip = clientIp(request);
+  const limit = hitRateLimit(`pay:${ip}`, { limit: 30, windowMs: 10 * 60_000, blockMs: 5 * 60_000 });
+  if (!limit.ok) return errorJson("محاولات دفع كتير — استنى شوية", 429, { retryAfter: limit.retryAfterSeconds });
 
-  const method = typeof body.method === "string" ? body.method : "card";
+  const body = await readJson(request);
+  if (!body) return errorJson("JSON غير صالح", 400);
+
+  const method = typeof body.method === "string" ? body.method.slice(0, 20) : "card";
   const amount = Number(body.amount);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return NextResponse.json({ error: "قيمة غير صالحة" }, { status: 422 });
+  if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) {
+    return errorJson("قيمة غير صالحة", 422);
   }
 
-  const reference = `pi_s1_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  const reference = `pi_s1_${Date.now().toString(36)}${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
   const card = (body.card ?? {}) as Record<string, unknown>;
   const n = digits(card.number);
+  const brand = brandOf(n);
+  const last4 = n.slice(-4);
 
-  let intent: Intent = { reference, amount, status: "succeeded", createdAt: Date.now() };
+  const base: Intent = {
+    reference,
+    amount,
+    status: "succeeded",
+    createdAt: Date.now(),
+    expiresAt: Date.now() + INTENT_TTL_MS,
+    attempts: 0,
+    brand,
+    last4,
+  };
+
+  let intent: Intent = base;
   let message = "تم اعتماد العملية";
   let code = "succeeded";
 
   if (method !== "card") {
     message = method === "cash" ? "الحجز محجوز 48 ساعة للدفع في الفرع" : "بانتظار تأكيد تحويل المحفظة";
   } else if (DECLINES[n]) {
-    intent = { ...intent, status: "failed" };
+    intent = { ...base, status: "failed" };
     code = DECLINES[n];
     message =
       code === "card_declined"
@@ -84,18 +100,18 @@ export async function POST(request: Request) {
             ? "البطاقة منتهية الصلاحية"
             : "رمز الأمان (CVV) غير مطابق";
   } else if (!luhnValid(n)) {
-    intent = { ...intent, status: "failed" };
+    intent = { ...base, status: "failed" };
     code = "invalid_number";
     message = "رقم البطاقة غير صحيح — فشل فحص Luhn";
   } else {
-    intent = { ...intent, status: "requires_action" };
+    intent = { ...base, status: "requires_action" };
     code = "requires_action";
     message = "البنك طلب تحقق إضافي 3-D Secure — ادخل الرمز اللي وصلك";
   }
 
-  intents.set(reference, intent);
+  putIntent(intent);
 
-  return NextResponse.json(
+  return json(
     {
       ok: intent.status !== "failed",
       status: intent.status,
@@ -103,9 +119,10 @@ export async function POST(request: Request) {
       provider: PROVIDER,
       reference,
       amount,
-      brand: brandOf(n),
-      last4: pretty(n),
+      brand,
+      last4,
       message,
+      expiresIn: Math.floor(INTENT_TTL_MS / 1000),
       otpHint: intent.status === "requires_action" ? "OTP: أي 6 أرقام (000000 = رمز غلط)" : undefined,
     },
     { status: intent.status === "failed" ? 402 : 200 },
@@ -113,10 +130,10 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  return NextResponse.json({
+  return json({
     provider: PROVIDER,
     sandbox: true,
-    openIntents: [...intents.values()].filter((i) => i.status === "requires_action").length,
+    openIntents: openIntentsCount(),
     note: "دي نقطة دفع تجريبية — مفيش فلوس بتتحرك.",
   });
 }

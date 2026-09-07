@@ -14,7 +14,7 @@ BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← ال
 | الوضع | اللي بيحصل |
 | --- | --- |
 | `BACKEND_URL` فاضي | الفرونت بيستخدم الـ Route Handlers المحلية (`app/api/*`) = وضع التجربة |
-| `BACKEND_URL` متظبوط | كل `/api/*` بيتحول للباك إند **قبل** ما Next يشوف الملفاته (`beforeFiles` في `next.config.ts`) |
+| `BACKEND_URL` متظبوط | كل `/api/*` بيتحول للباك إند **قبل** ما Next يشوف الملفاته (`beforeFiles` في `next.config.ts`) — **ما عدا `/api/admin/*`** اللي بتفضل محلية لأن الجلسات والصلاحيات في داتابيز نكست |
 | `NEXT_PUBLIC_API_BASE` متظبوط | المتصفح بيكلم الباك إند مباشرة → محتاج CORS عندك |
 
 ## 2) الـ endpoints المطلوبة (نفس شكل الردود الحالية)
@@ -46,6 +46,9 @@ BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← ال
 { "ok": true, "order": { "orderId": "FZ-2026-K3JD22", "status": "active" }, "invoice": "INV-FZ-2026-K3JD22" }
 ```
 `GET /api/subscribe` → إحصائيات (`total`, `revenue`, `byPlan`) للداشبورد.
+🔒 **محمي**: محتاج كوكي جلسة إدارية + صلاحية `subscriptions:read`، وبيرجع `401` من غيرها.
+`revenue` بترجع `null` للأدوار اللي مالهاش `revenue:read` (الاستقبال/الكوتش)، والكوتش بيشوف أعضاءه بس.
+نفس الكلام على `GET /api/bookings`. (قبل كده الاتنين كانوا مفتوحين للعالم وبيرجعوا أسماء وتليفونات — دي كانت ثغرة واتقفلت.)
 
 ### `POST /api/pay` — اعتماد عملية الدفع
 ```jsonc
@@ -73,6 +76,25 @@ BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← ال
 // 401 → { "ok": false, "status": "requires_action", "message": "رمز التحقق غير صحيح…" }
 // 404 → العملية مش موجودة / انتهت صلاحيتها
 ```
+
+### `/api/admin/*` — لوحة الإدارة (بتفضل جوّه نكست)
+
+| Endpoint | الميثود | الصلاحية المطلوبة |
+| --- | --- | --- |
+| `/api/admin/auth/login` | POST | — (بيرجع كوكي جلسة HttpOnly + `csrfToken`) |
+| `/api/admin/auth/logout` | POST | جلسة |
+| `/api/admin/auth/me` | GET | جلسة |
+| `/api/admin/auth/password` | POST | جلسة (بيلغي كل الجلسات التانية) |
+| `/api/admin/stats` | GET | `dashboard:view` |
+| `/api/admin/subscriptions` | GET | `subscriptions:read` أو `:read:own` |
+| `/api/admin/subscriptions/[orderId]` | PATCH | `subscriptions:update` / `:cancel` |
+| `/api/admin/subscriptions/[orderId]` | DELETE | `subscriptions:delete` (المدير العام بس) |
+| `/api/admin/bookings` · `/[id]` | GET/PATCH/DELETE | `bookings:*` |
+| `/api/admin/users` · `/[id]` | GET/POST/PATCH/DELETE | `users:read` / `users:manage` |
+| `/api/admin/audit` | GET | `audit:read` |
+
+كل طلب بيغيّر حالة لازم يبعت هيدر `x-csrf-token` بنفس قيمة الكوكي `fz_csrf`
+(والسيرفر بيقارنها بالهاش المربوط بالجلسة). لو ناقصة → `403 { code: "csrf" }`.
 
 **ثوابت لازم تتحافظ** (الواجهة بتقرا عليها): `ok`, `status` ∈ `succeeded|requires_action|failed`, `reference`, `message`, `amount`. وأي حاجة تانية تزوّدها (invoice id, gateway id, payment_url) بتوصل في `res.data` من غير ما تحتاج تعديل في الفرونت.
 
@@ -164,7 +186,7 @@ curl -s -X POST $BACKEND/api/pay -H 'Content-Type: application/json' \
 
 ## 6) المرجع الرسمي للسلوك: اختبارات الفرونت نفسها
 
-في `tests/api-contract.test.ts` فيه 49 assertion بينادوا الـ route handlers المحلية ويأكدوا
+في `tests/api-contract.test.ts` فيه assertions بينادوا الـ route handlers المحلية ويأكدوا
 كل حالة في العقد (201 تأكيد الحجز، 422 بـ `fields`، 402 رفض بنك، 401 OTP غلط، 404 مرجع
 مش موجود، 422 من غير `amount`). يعني:
 

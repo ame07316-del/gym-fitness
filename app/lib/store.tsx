@@ -233,6 +233,8 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
       const res = await apiFetch<{ booking?: { id?: string }; message?: string }>(ENDPOINTS.bookings, { method: "POST", body: rec });
       if (res.ok) {
         rec.status = "confirmed";
+        // الـ id بيتولّد على السيرفر — بنمشي بيه عشان الكود اللي عند العميل يطابق اللي في الداتابيز
+        if (res.data?.booking?.id) rec.id = res.data.booking.id;
       } else {
         toast({
           kind: "warn",

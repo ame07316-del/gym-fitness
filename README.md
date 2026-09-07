@@ -1,8 +1,8 @@
 # FitZone Pro 🏋️ — Arabic RTL gym site with a real subscription + payment flow
 
-**EN:** Arabic-first (RTL) Next.js 16 app for a gym: plan builder with pricing engine, 4-step checkout, a **behaviourally realistic sandbox payment layer** (Luhn, brand detection incl. mada, 3‑D Secure OTP, bank decline codes), digital membership card with freeze/renew, class booking, fitness calculators, before/after slider — plus a documented single-file backend seam (`app/lib/api.ts`) so a Laravel/Node API plugs in with one env var.
+**EN:** Arabic-first (RTL) Next.js 16 app for a gym: plan builder with pricing engine, 4-step checkout, a **behaviourally realistic sandbox payment layer** (Luhn, brand detection incl. mada, 3‑D Secure OTP, bank decline codes), digital membership card with freeze/renew, class booking, fitness calculators, before/after slider — **plus a real SQLite-backed admin panel with role-based access control** (owner / manager / coach / reception), DB-backed sessions, CSRF protection, rate limiting and an audit log — and a documented single-file backend seam (`app/lib/api.ts`) so a Laravel/Node API plugs in with one env var.
 
-**عربي:** صفحة هبوط عربية (RTL) لجيم، فيها نظام اشتراكات كامل وشغّال من غير باك-إند خارجي، مع طبقة دفع وضع تجريبي — **مفيش فلوس حقيقية ومفيش بيانات كروت بتتخزن**.
+**عربي:** صفحة هبوط عربية (RTL) لجيم، فيها نظام اشتراكات كامل وشغّال من غير باك-إند خارجي، **ولوحة إدارة على `/admin` بقاعدة بيانات حقيقية وصلاحيات لكل دور** (مدير عام / مدير فرع / كوتش / استقبال)، مع طبقة دفع وضع تجريبي — **مفيش فلوس حقيقية ومفيش بيانات كروت بتتخزن**.
 
 <br/>
 
@@ -10,7 +10,7 @@
   <a href="https://github.com/ame07316-del/gym-fitness/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ame07316-del/gym-fitness/actions/workflows/ci.yml/badge.svg"></a>
   <a href="#"><img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-black?logo=next.js"></a>
   <a href="#"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript"></a>
-  <a href="tests/"><img alt="Tests" src="https://img.shields.io/badge/vitest-49%20passing-6E9F18"></a>
+  <a href="tests/"><img alt="Tests" src="https://img.shields.io/badge/vitest-76%20passing-6E9F18"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-All%20rights%20reserved-orange"></a>
 </p>
 
@@ -19,6 +19,8 @@
 | 🌍 **Live demo** | <https://gym-fitness-ame07316-5868s-projects.vercel.app> · لو طلب login اعمل [خطوة 1.5](docs/DEPLOY-VERCEL.md) |
 | 🎬 **Walkthrough (90 ثانية)** | `_لينك Loom/YouTube_` |
 | 📄 **عقد الباك إند** | [`docs/BACKEND-CONTRACT.md`](docs/BACKEND-CONTRACT.md) |
+| 🛡️ **لوحة الإدارة والصلاحيات** | [`docs/ADMIN.md`](docs/ADMIN.md) — `/admin` · حسابات العرض جوّه |
+| 🔐 **مراجعة الأمان** | [`docs/SECURITY.md`](docs/SECURITY.md) — ١٢ نقطة اتصلّحت + التهديدات |
 | ⚖️ **الرخصة** | All rights reserved — details in [LICENSE](LICENSE) |
 
 ## 📸 لقطات
@@ -34,12 +36,14 @@
 
 ## ما الذي يُظهره هذا المشروع (English — for recruiters)
 
-- **Pricing engine with 49 unit tests** — plan × cycle × add-ons × coupon rules (minimums, caps) × 14% Egyptian VAT, all money rounded to piasters in one place.
+- **Role-based admin panel on a real database** — SQLite (better-sqlite3) with versioned migrations, 4 roles × 15 permissions enforced **server-side** (coach scoping happens in SQL, not in the UI), DB-backed sessions with idle + absolute expiry, scrypt password hashing, CSRF double-submit bound to the session, per-IP/per-account rate limiting, and an audit log for every destructive action.
+- **Pricing engine with unit tests** — plan × cycle × add-ons × coupon rules (minimums, caps) × 14% Egyptian VAT, all money rounded to piasters in one place.
 - **Payment UX without a gateway** — client-side Luhn + brand detection (Visa/Mastercard/Amex/**mada**), server-side decline simulation, 3-D Secure challenge step, per-field error mapping. Same contract as Stripe/Paymob, so the real switch is two function bodies.
 - **Zero `fetch` scattered in components** — one `apiFetch` module + a `rewrites.beforeFiles` proxy: point `BACKEND_URL` at any Laravel/Node API and nothing else changes.
 - **Field-level server validation in the UI** — a `422 { fields: { "member.phone": "…" } }` lands under the exact input automatically.
 - **Arabic RTL done properly** — measured from the right, `dir="rtl"` scroll/anchor logic, self-hosted Cairo font (no external CDN that rots).
 - **Clean console** — `useSyncExternalStore` for `localStorage` (hydration-safe, cross-tab), framer-motion hydration noise silenced, zero warnings in SSR logs.
+- **Security headers by default** — CSP (nonce + `strict-dynamic` on `/admin`), `nosniff`, `Referrer-Policy`, `Permissions-Policy`, HSTS, no `X-Powered-By` — all in `proxy.ts` (Next 16 renamed `middleware` → `proxy`).
 - **CI** — `typecheck → lint → vitest → build` on every push/PR ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 ## التشغيل
@@ -48,11 +52,23 @@
 nvm use                # Node 22 (راجع .nvmrc)
 npm install
 npm run dev            # http://localhost:3000 — بيسمع على 0.0.0.0 للمعاينات الخارجية
-npm test               # 49 اختبار: محرك الأسعار + قواعد الكروت + عقد الـ API
+                       # لوحة الإدارة: http://localhost:3000/admin
+npm test               # 76 اختبار: الأسعار + الكروت + عقد الـ API + الصلاحيات والأمان
 npm run typecheck      # tsc --noEmit
 npm run lint           # eslint
 npm run build          # production build
 ```
+
+أول تشغيل بيعمل `data/gym.db` لوحده (ميجريشن + بيانات عرض). ادخل اللوحة بـ:
+
+| الحساب | الدور | كلمة السر |
+| --- | --- | --- |
+| `owner@fitzone.pro` | المدير العام (يمسح ويلغي أي اشتراك) | `Owner#Fit2026` |
+| `manager@fitzone.pro` | مدير فرع (يلغي ويجمّد، مايمسحش) | `Manager#Fit2026` |
+| `coach.ahmed@fitzone.pro` | كوتش (أعضاءه هو بس) | `Coach#Fit2026` |
+| `reception@fitzone.pro` | استقبال (من غير أرقام مالية) | `Front#Fit2026` |
+
+> دي حسابات **وضع العرض** بس (`DEMO_SEED=1`). في الإنتاج: `DEMO_SEED=0` + `SEED_OWNER_PASSWORD`.
 
 ## إيه الجديد
 
@@ -67,7 +83,11 @@ npm run build          # production build
 | تفاعلات | Toasts، شريط تقدم السكرول، النافبار بيتابع القسم النشط، مفضّلين، حجز مكان في كلاس، جدول يوم/أسبوع، لايت بوكس بالكي بورد والسوايب، بحث في الأسئلة الشائعة |
 | حاسبات حيّة | BMI بمقياس ملوّن + وزن صحي، TDEE + ماكروز برسم دائري، أقصى وزن 1RM، حاسبة المياه |
 | SEO | `app/robots.ts` + `app/sitemap.ts` + metadata عربي كامل + `NEXT_PUBLIC_SITE_URL` للـ OG |
-| بلاك إند | `app/api/{bookings,subscribe,pay,pay/confirm}` + طبقة `app/lib/api.ts` + بروكسي `BACKEND_URL` |
+| 🛡️ لوحة إدارة | `/admin`: نظرة عامة + اشتراكات (تجميد/استئناف/إلغاء/حذف/إسناد كوتش) + حجوزات + مستخدمين + سجل عمليات |
+| 👥 صلاحيات | ٤ أدوار × ١٥ صلاحية — المدير العام بس هو اللي بيمسح نهائي، والكوتش بيشوف أعضاءه (فلترة في الـ SQL) |
+| 🗄️ قاعدة بيانات | SQLite + ميجريشن + `users/sessions/subscriptions/bookings/audit_log/rate_limits` — الاستعلامات كلها معزولة في `app/lib/db/*` |
+| 🔐 أمان | scrypt، جلسات في الداتابيز، CSRF، قفل بعد ٥ محاولات، rate limit، ترويسات CSP — التفاصيل في [`docs/SECURITY.md`](docs/SECURITY.md) |
+| بلاك إند | `app/api/{bookings,subscribe,pay,pay/confirm}` + `app/api/admin/*` + طبقة `app/lib/api.ts` + بروكسي `BACKEND_URL` |
 | حفظ الحالة | `localStorage` عبر `useSyncExternalStore` → شغّال مع hydration، ومتزامن بين التبويبات، من غير فلاش |
 
 ## 💳 تجربة الدفع (بدون فلوس حقيقية)
@@ -88,13 +108,14 @@ npm run build          # production build
 - `app/lib/payment.ts` — Luhn، أنواع الكروت، تاريخ الانتهاء، `validateCard()` (أخطاء لكل حقل)، `authorize`/`confirmPayment`.
 - `app/api/pay/route.ts` + `app/api/pay/confirm/route.ts` — قرار البنك، مرجع العملية، و OTP.
 
-> للربط الحقيقي: `NEXT_PUBLIC_PAYMENT_PROVIDER=paymob|fawry|stripe` + `NEXT_PUBLIC_PAYMENT_SECRET=...`
+> للربط الحقيقي: `NEXT_PUBLIC_PAYMENT_PROVIDER=paymob|fawry|stripe` + `PAYMENT_SECRET=...`
+> (⚠️ المفتاح **من غير** بادئة `NEXT_PUBLIC` — أي متغير بالبادئة دي بيتحقن في جافاسكريبت المتصفح.)
 > وبدّل جسم الدالتين فوق — شكل `PayResult` ثابت فالواجهة كلها من غير تعديل.
 
 ## 🧪 الاختبارات
 
 ```bash
-npm test              # vitest run
+npm test              # vitest run — 76 اختبار
 npm run test:watch
 ```
 
@@ -103,6 +124,8 @@ npm run test:watch
 | `tests/pricing.test.ts` | كل باقة × كل مدة، الإضافات، خصم المدة، كوبونات (min/cap)، الضريبة، التوفير، تواريخ التجديد، نمط كارت العضوية |
 | `tests/card.test.ts` | `luhnValid`، `detectBrand` (Visa/MC/Amex/mada)، `expValid`، `validateCard` وأخطاء الحقول |
 | `tests/api-contract.test.ts` | بينادي الـ route handlers نفسها: 201/200/402/401/404/422 وشكل `fields` — **نفس الاختبارات اللي لازم أي باك إند خارجي يعديها** |
+| `tests/auth.test.ts` | مصفوفة الصلاحيات لكل دور + scrypt (ملح مختلف، `timingSafeEqual`) + سياسة كلمات السر |
+| `tests/admin-api.test.ts` | الدخول والقفل بعد ٥ محاولات، حماية CSRF وOrigin، نطاق رؤية كل دور، إلغاء/حذف الاشتراكات، وإن تعطيل مستخدم بيقتل جلسته |
 
 ## 🔌 ربط الباك إند
 
@@ -132,16 +155,25 @@ app/
   page.tsx              تركيب السكاشن (server component)
   robots.ts / sitemap.ts
   globals.css           Tailwind v4 @theme + أنيميشنات + ستايل السلايدرز
+  admin/                🛡️ لوحة الإدارة (Server Components + جدول لكل قسم)
+    page.tsx login/page.tsx components/{Dashboard,SubscriptionsPanel,BookingsPanel,UsersPanel,AuditPanel,AccountPanel,LoginForm}
   api/
-    bookings/route.ts   GET/POST حجز جلسة + validateBooking()
-    subscribe/route.ts  GET/POST تفعيل اشتراك + إيراد/توزيع الباقات
+    bookings/route.ts   POST عام + GET محمي بصلاحية
+    subscribe/route.ts  POST عام + GET محمي (الإيراد للأدوار المصرّح لها بس)
     pay/route.ts        POST حجز عملية دفع (Luhn/رفض بنك/3DS) + GET health
-    pay/confirm/route.ts POST تأكيد الـ OTP
+    pay/confirm/route.ts POST تأكيد الـ OTP (٥ محاولات + انتهاء صلاحية)
+    admin/              auth/{login,logout,me,password} · users[/id] · subscriptions[/orderId]
+                        bookings[/id] · stats · audit
   components/
     Navbar Hero Amenities Trainers Schedule Pricing Tools Gallery
     Testimonials Faq Booking Footer(+FloatingActions) MemberPanel Checkout
     ui/{Bits,Overlay,Toast}
   lib/
+    db/                 🗄️ SQLite: index(migrations) · seed · users · subscriptions · bookings · audit · rate-limit
+    auth/               roles(الصلاحيات) · password(scrypt) · session(كوكيز+CSRF) · guard(authorize) · server
+    http.ts             ردود JSON بترويسات آمنة + قراءة body بحد أقصى + تنظيف المدخلات
+    admin-client.ts     نداءات اللوحة من المتصفح (بتضيف توكن CSRF)
+    intents.ts          نوايا الدفع (صلاحية 10 دقايق + حد محاولات)
     api.ts              🎛️ نقطة الخروج الوحيدة لكل نداءات السيرفر
     payment.ts          Luhn + أنواع الكروت + validateCard + TEST_CARDS + authorize/confirm
     subscription.ts     محرك الأسعار (بتقريب للفلس) + Membership + كود الكارت
@@ -149,8 +181,9 @@ app/
     store.tsx           GymProvider: سلة الاشتراك، العضوية، المفضلات، الحجوزات
     storage.ts          usePersistentState / useClock / useHydrated
     utils.ts            egp()، fmtDate()، isEGPhone()/EG_PHONE_RE، cx()…
-tests/                  49 اختبار (vitest) — بيزودي كل يوم
-docs/                   BACKEND-CONTRACT.md · DEPLOY-VERCEL.md · screenshots/
+proxy.ts                ترويسات الأمان (CSP/HSTS/…) + بوابة `/admin`
+tests/                  76 اختبار (vitest)
+docs/                   BACKEND-CONTRACT.md · ADMIN.md · SECURITY.md · DEPLOY-VERCEL.md · screenshots/
 scripts/                mock-backend.mjs · make-transform-pairs.mjs · make-trainer-crops.mjs
 .github/workflows/ci.yml  typecheck + lint + vitest + build
 public/images/          hero + جيم + كوتشات + 6 صور قبل/بعد (1280×720)
@@ -166,11 +199,11 @@ public/images/          hero + جيم + كوتشات + 6 صور قبل/بعد (1
 
 ## عشان يبقى إنتاج حقيقي
 
-1. **قاعدة بيانات**: `app/api/*/route.ts` بيخزن in-memory؛ بدّلها بالاستعلام بتاعك (MySQL/Postgres) — الواجهة ما بتتغيرش.
+1. **قاعدة بيانات**: الافتراضي SQLite في `data/gym.db`؛ للانتقال لـ MySQL/Postgres بدّل ملفات `app/lib/db/*` بس — الـ routes والواجهة ما بيتغيروش.
 2. **بوابة دفع فعلية**: `NEXT_PUBLIC_PAYMENT_PROVIDER=paymob|fawry|stripe` + `authorize()`/`confirmPayment()`.
 3. **الأرقام والروابط**: `app/lib/data.ts` → `GYM` (واتساب، تليفون، عنوان، ميعاد الشغل) و`COUPONS` و`ADDONS`.
 4. **دومين الـ OG**: `NEXT_PUBLIC_SITE_URL` في البيئة عشان `metadataBase` والـ sitemap.
-5. **لوحة أدمن**: `GET /api/bookings` و`GET /api/subscribe` بيرجعوا صفوف/إيراد/توزيع الباقات — أساس كافي لدشبورد بسيط.
+5. **لوحة أدمن**: جاهزة على `/admin` — شغّل `DEMO_SEED=0` وحط `SEED_OWNER_PASSWORD`، وراجع [`docs/SECURITY.md`](docs/SECURITY.md) قبل النشر.
 
 ## ⚖️ الرخصة والإخلاء
 
