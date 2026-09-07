@@ -1,15 +1,16 @@
 import type { MetadataRoute } from "next";
 
+// Keep these anchors in sync with the section ids rendered on the home page.
 const ANCHORS = [
-  "plans",
+  "pricing",
   "trainers",
   "schedule",
   "gallery",
   "tools",
-  "success",
-  "reviews",
+  "stories",
   "faq",
   "booking",
+  "contact",
 ] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {
