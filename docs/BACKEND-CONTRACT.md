@@ -45,7 +45,9 @@ BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← ال
 // 201
 { "ok": true, "order": { "orderId": "FZ-2026-K3JD22", "status": "active" }, "invoice": "INV-FZ-2026-K3JD22" }
 ```
-`GET /api/subscribe` → إحصائيات (`total`, `revenue`, `byPlan`) للداشبورد.
+`GET /api/subscribe` → إحصائيات (`total`, `revenue`, `byPlan`) للداشبورد. المسار خاص: لازم `Authorization: Bearer $ADMIN_API_TOKEN`، وبدون التوكن يرجع `401`.
+
+`GET /api/bookings` → الصفوف الأخيرة للداشبورد، بنفس حماية `ADMIN_API_TOKEN` (بدونها `401`).
 
 ### `POST /api/pay` — اعتماد عملية الدفع
 ```jsonc

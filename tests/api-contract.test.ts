@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { POST as book, validateBooking } from "@/app/api/bookings/route";
-import { POST as subscribe } from "@/app/api/subscribe/route";
+import { GET as bookingsAdmin, POST as book, validateBooking } from "@/app/api/bookings/route";
+import { GET as subscribeAdmin, POST as subscribe } from "@/app/api/subscribe/route";
 import { GET as payHealth, POST as pay } from "@/app/api/pay/route";
 import { POST as confirm } from "@/app/api/pay/confirm/route";
 import { isEGPhone } from "@/app/lib/utils";
@@ -15,6 +15,12 @@ const post = (body: unknown) =>
     method: "POST",
     headers: { "content-type": "application/json" },
     body: typeof body === "string" ? body : JSON.stringify(body),
+  });
+
+const get = (authorization?: string) =>
+  new Request("http://local.test/api", {
+    method: "GET",
+    headers: authorization ? { authorization: `Bearer ${authorization}` } : undefined,
   });
 
 describe("validateBooking / isEGPhone — التحقّق المشترك", () => {
@@ -54,9 +60,24 @@ describe("POST /api/bookings", () => {
     expect(Object.keys(body.fields).sort()).toEqual(["name", "phone"]);
   });
 
-  it("body مش JSON → 400 مش كراش", async () => {
-    const res = await book(post("{ليس json"));
-    expect(res.status).toBe(400);
+  it("body مش JSON أو null → 400 مش كراش", async () => {
+    expect((await book(post("{ليس json"))).status).toBe(400);
+    expect((await book(post(null))).status).toBe(400);
+    expect((await book(post([]))).status).toBe(400);
+  });
+
+  it("GET الخاص بالداشبورد محمي بالتوكن", async () => {
+    const previous = process.env.ADMIN_API_TOKEN;
+    process.env.ADMIN_API_TOKEN = "contract-test-admin-token";
+    try {
+      expect((await bookingsAdmin(get("wrong-token"))).status).toBe(401);
+      const ok = await bookingsAdmin(get("contract-test-admin-token"));
+      expect(ok.status).toBe(200);
+      expect(ok.headers.get("cache-control")).toBe("no-store");
+    } finally {
+      if (previous === undefined) delete process.env.ADMIN_API_TOKEN;
+      else process.env.ADMIN_API_TOKEN = previous;
+    }
   });
 });
 
@@ -95,6 +116,19 @@ describe("POST /api/subscribe", () => {
   it("422 على إجمالي مش منطقي", async () => {
     expect((await subscribe(post({ ...order, total: 0 }))).status).toBe(422);
     expect((await subscribe(post({ ...order, total: -50 }))).status).toBe(422);
+  });
+
+  it("null → 400، وGET الإحصائيات محمي", async () => {
+    expect((await subscribe(post(null))).status).toBe(400);
+    const previous = process.env.ADMIN_API_TOKEN;
+    process.env.ADMIN_API_TOKEN = "contract-test-admin-token";
+    try {
+      expect((await subscribeAdmin(get("wrong-token"))).status).toBe(401);
+      expect((await subscribeAdmin(get("contract-test-admin-token"))).status).toBe(200);
+    } finally {
+      if (previous === undefined) delete process.env.ADMIN_API_TOKEN;
+      else process.env.ADMIN_API_TOKEN = previous;
+    }
   });
 });
 
@@ -137,8 +171,9 @@ describe("POST /api/pay — سلوك البوابة", () => {
     expect(cash.message).toContain("48");
   });
 
-  it("من غير amount → 422", async () => {
+  it("من غير amount → 422، وbody null → 400", async () => {
     expect((await pay(post({ method: "card", card: { number: "4242424242424242" } }))).status).toBe(422);
+    expect((await pay(post(null))).status).toBe(400);
   });
 
   it("GET /api/pay = health بيقول sandbox", async () => {
@@ -175,5 +210,9 @@ describe("POST /api/pay/confirm — خطوة الـ OTP", () => {
     const res = await confirm(post({ reference: "pi_s1_مفبرك", code: "123456" }));
     expect(res.status).toBe(404);
     expect((await res.json()).message).toContain("من جديد");
+  });
+
+  it("body null → 400 بدل ما يحصل كراش", async () => {
+    expect((await confirm(post(null))).status).toBe(400);
   });
 });

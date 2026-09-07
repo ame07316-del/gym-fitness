@@ -1,3 +1,4 @@
+import { readJsonObject } from "@/app/lib/request";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,21 @@ const PROVIDER = process.env.NEXT_PUBLIC_PAYMENT_PROVIDER ?? "sandbox";
 
 type Intent = { reference: string; amount: number; status: "requires_action" | "succeeded" | "failed"; createdAt: number };
 export const intents = new Map<string, Intent>();
+
+const INTENT_TTL_MS = 15 * 60_000;
+const MAX_INTENTS = 1_000;
+
+/** Keep the in-memory sandbox bounded when the public demo is hammered. */
+function pruneIntents(now = Date.now()) {
+  for (const [reference, intent] of intents) {
+    if (now - intent.createdAt > INTENT_TTL_MS) intents.delete(reference);
+  }
+  while (intents.size >= MAX_INTENTS) {
+    const oldest = intents.keys().next().value as string | undefined;
+    if (!oldest) break;
+    intents.delete(oldest);
+  }
+}
 
 const digits = (v: unknown) => (typeof v === "string" ? v.replace(/\D/g, "") : "");
 
@@ -49,12 +65,9 @@ const DECLINES: Record<string, string> = {
 const pretty = (n: string) => n.slice(-4);
 
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "JSON غير صالح" }, { status: 400 });
-  }
+  const parsed = await readJsonObject(request);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const body = parsed.body;
 
   const method = typeof body.method === "string" ? body.method : "card";
   const amount = Number(body.amount);
@@ -62,6 +75,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "قيمة غير صالحة" }, { status: 422 });
   }
 
+  pruneIntents();
   const reference = `pi_s1_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
   const card = (body.card ?? {}) as Record<string, unknown>;
   const n = digits(card.number);

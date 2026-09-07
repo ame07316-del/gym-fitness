@@ -88,7 +88,7 @@ npm run build          # production build
 - `app/lib/payment.ts` — Luhn، أنواع الكروت، تاريخ الانتهاء، `validateCard()` (أخطاء لكل حقل)، `authorize`/`confirmPayment`.
 - `app/api/pay/route.ts` + `app/api/pay/confirm/route.ts` — قرار البنك، مرجع العملية، و OTP.
 
-> للربط الحقيقي: `NEXT_PUBLIC_PAYMENT_PROVIDER=paymob|fawry|stripe` + `NEXT_PUBLIC_PAYMENT_SECRET=...`
+> للربط الحقيقي: `NEXT_PUBLIC_PAYMENT_PROVIDER=paymob|fawry|stripe` + `PAYMENT_SECRET=...` (سيرفر فقط، **ممنوع** `NEXT_PUBLIC_` للمفتاح)
 > وبدّل جسم الدالتين فوق — شكل `PayResult` ثابت فالواجهة كلها من غير تعديل.
 
 ## 🧪 الاختبارات
@@ -170,7 +170,7 @@ public/images/          hero + جيم + كوتشات + 6 صور قبل/بعد (1
 2. **بوابة دفع فعلية**: `NEXT_PUBLIC_PAYMENT_PROVIDER=paymob|fawry|stripe` + `authorize()`/`confirmPayment()`.
 3. **الأرقام والروابط**: `app/lib/data.ts` → `GYM` (واتساب، تليفون، عنوان، ميعاد الشغل) و`COUPONS` و`ADDONS`.
 4. **دومين الـ OG**: `NEXT_PUBLIC_SITE_URL` في البيئة عشان `metadataBase` والـ sitemap.
-5. **لوحة أدمن**: `GET /api/bookings` و`GET /api/subscribe` بيرجعوا صفوف/إيراد/توزيع الباقات — أساس كافي لدشبورد بسيط.
+5. **لوحة أدمن**: `GET /api/bookings` و`GET /api/subscribe` بيرجعوا صفوف/إيراد/توزيع الباقات بعد `Authorization: Bearer $ADMIN_API_TOKEN` فقط — أساس كافي لدشبورد بسيط. لو التوكن مش متظبط، الـ GET بيرجع `401` ولا يسرّب بيانات.
 
 ## ⚖️ الرخصة والإخلاء
 

@@ -1,3 +1,5 @@
+import { isAdminRequest, NO_STORE_HEADERS } from "@/app/lib/api-security";
+import { readJsonObject } from "@/app/lib/request";
 import { NextResponse } from "next/server";
 import { validateBooking } from "../bookings/route";
 
@@ -26,12 +28,9 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0
 const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, 12) : []);
 
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "JSON غير صالح" }, { status: 400 });
-  }
+  const parsed = await readJsonObject(request);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const body = parsed.body;
 
   const member = (body.member ?? {}) as Record<string, unknown>;
   const { name, phone, errors } = validateBooking(member);
@@ -67,12 +66,19 @@ export async function POST(request: Request) {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!isAdminRequest(request)) {
+    return NextResponse.json({ error: "غير مصرح — يلزم رمز لوحة الإدارة" }, { status: 401, headers: NO_STORE_HEADERS });
+  }
+
   const revenue = orders.reduce((s, o) => s + o.total, 0);
-  return NextResponse.json({
-    total: orders.length,
-    revenue,
-    byPlan: orders.reduce<Record<string, number>>((m, o) => ({ ...m, [o.planName]: (m[o.planName] ?? 0) + 1 }), {}),
-    items: orders.slice(0, 25),
-  });
+  return NextResponse.json(
+    {
+      total: orders.length,
+      revenue,
+      byPlan: orders.reduce<Record<string, number>>((m, o) => ({ ...m, [o.planName]: (m[o.planName] ?? 0) + 1 }), {}),
+      items: orders.slice(0, 25),
+    },
+    { headers: NO_STORE_HEADERS },
+  );
 }

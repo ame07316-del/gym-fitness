@@ -1,3 +1,5 @@
+import { isAdminRequest, NO_STORE_HEADERS } from "@/app/lib/api-security";
+import { readJsonObject } from "@/app/lib/request";
 import { EG_PHONE_RE } from "@/app/lib/utils";
 import { NextResponse } from "next/server";
 
@@ -36,12 +38,9 @@ export function validateBooking(body: Record<string, unknown>) {
 }
 
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "JSON غير صالح" }, { status: 400 });
-  }
+  const parsed = await readJsonObject(request);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const body = parsed.body;
 
   const { name, phone, goal, errors } = validateBooking(body);
   if (Object.keys(errors).length) {
@@ -68,10 +67,17 @@ export async function POST(request: Request) {
   );
 }
 
-export async function GET() {
-  return NextResponse.json({
-    total: store.length,
-    pending: store.filter((s) => s.status !== "confirmed").length,
-    items: store.slice(0, 25),
-  });
+export async function GET(request: Request) {
+  if (!isAdminRequest(request)) {
+    return NextResponse.json({ error: "غير مصرح — يلزم رمز لوحة الإدارة" }, { status: 401, headers: NO_STORE_HEADERS });
+  }
+
+  return NextResponse.json(
+    {
+      total: store.length,
+      pending: store.filter((s) => s.status !== "confirmed").length,
+      items: store.slice(0, 25),
+    },
+    { headers: NO_STORE_HEADERS },
+  );
 }

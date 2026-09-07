@@ -22,7 +22,9 @@ export type PayResult = {
 import { apiFetch, ENDPOINTS, HAS_EXTERNAL_BACKEND } from "./api";
 
 export const PROVIDER = process.env.NEXT_PUBLIC_PAYMENT_PROVIDER ?? "sandbox";
-export const IS_SANDBOX = PROVIDER === "sandbox" || !process.env.NEXT_PUBLIC_PAYMENT_SECRET;
+// Never read a secret from a client module. The public provider name is enough
+// for the UI; real gateway credentials belong in server-only code/env vars.
+export const IS_SANDBOX = PROVIDER === "sandbox";
 
 const digits = (v: string) => v.replace(/\D/g, "");
 

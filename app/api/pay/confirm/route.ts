@@ -1,3 +1,4 @@
+import { readJsonObject } from "@/app/lib/request";
 import { NextResponse } from "next/server";
 import { intents } from "../route";
 
@@ -5,12 +6,9 @@ export const dynamic = "force-dynamic";
 
 /** تأكيد 3-D Secure للعملية المعلقة (نفس شكل confirm في Stripe/Paymob) */
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "JSON غير صالح" }, { status: 400 });
-  }
+  const parsed = await readJsonObject(request);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const body = parsed.body;
 
   const reference = typeof body.reference === "string" ? body.reference : "";
   const code = typeof body.code === "string" ? body.code.trim() : "";
