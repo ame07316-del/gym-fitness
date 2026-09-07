@@ -3,19 +3,16 @@
 import React, { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowLeft, ArrowRight, Banknote, CalendarClock, Check, CircleCheck, CreditCard, LoaderCircle, X,
-  Lock, PartyPopper, Phone, ShieldCheck, Sparkles, Wallet, Split,
+  ArrowLeft, ArrowRight, Banknote, Check, CircleCheck, Copy, LoaderCircle, X,
+  PartyPopper, Phone, ShieldCheck, Sparkles, Wallet,
 } from "lucide-react";
-import { ADDONS, GOALS, GYM, PAY_METHODS, TIME_SLOTS } from "@/app/lib/data";
+import { ADDONS, GOALS, GYM, PAY_METHODS, PAY_TARGETS, TIME_SLOTS, type PayMethodId } from "@/app/lib/data";
 
 const ADDON_LOOKUP = Object.fromEntries(ADDONS.map((a) => [a.id, a]));
 import { cx, egp, isEGPhone } from "@/app/lib/utils";
 import { useGym } from "@/app/lib/store";
 import { cardPattern } from "@/app/lib/subscription";
 import { Modal } from "@/app/components/ui/Overlay";
-import {
-  BRAND_LABEL, IS_SANDBOX, TEST_CARDS, authorize, confirmPayment, detectBrand, validateCard, type PayMethod,
-} from "@/app/lib/payment";
 import { useToast } from "@/app/components/ui/Toast";
 
 const STEPS = [
@@ -29,16 +26,11 @@ export default function Checkout() {
   const { checkout, closeCheckout, setCheckoutStep, draft, quote, confirmSubscription, setPanelOpen } = useGym();
   const toast = useToast();
   const [form, setForm] = useState({ name: "", phone: "", goal: GOALS[0], start: TIME_SLOTS[3].id, notes: "" });
-  const [pay, setPay] = useState<string>("card");
-  const [card, setCard] = useState({ number: "", exp: "", cvv: "", holder: "" });
+  const [pay, setPay] = useState<PayMethodId>("wallet");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-  const [payPhase, setPayPhase] = useState<"idle" | "auth" | "otp" | "failed" | "done">("idle");
   const [payMsg, setPayMsg] = useState("");
-  const [intent, setIntent] = useState<string | null>(null);
-  const [otp, setOtp] = useState("");
   const [wallet, setWallet] = useState("");
-  const [cardErrors, setCardErrors] = useState<Record<string, string>>({});
   const [done, setDone] = useState<null | {
     orderId: string;
     endsAt: number;
@@ -47,6 +39,7 @@ export default function Checkout() {
     total: number;
     perMonth: number;
     name: string;
+    payment: PayMethodId;
   }>(null);
 
   const step = checkout.step;
@@ -69,98 +62,47 @@ export default function Checkout() {
     else toast({ kind: "error", title: "راجع البيانات", body: "فيه خانة أو اتنين محتاجة تعديل." });
   };
 
-  const finish = async (paymentRef?: string | null) => {
-    setLoading(true);
-    setPayPhase("auth");
-    const brand = pay === "card" ? detectBrand(card.number) : null;
-    const rec = await confirmSubscription({
-      paymentRef: paymentRef ?? null,
-      cardBrand: brand,
-      cardLast4: pay === "card" ? card.number.replace(/\D/g, "").slice(-4) : null,
-      planId: draft.planId,
-      planName: quote.planName,
-      cycle: draft.cycle,
-      addonIds: draft.addonIds,
-      coupon: quote.coupon?.code ?? null,
-      member: { name: form.name.trim(), phone: form.phone.trim(), goal: form.goal },
-      payment: pay,
-      total: quote.total,
-      perMonth: quote.perMonth,
-      months: quote.months,
-    });
-    setLoading(false);
-    if (rec) {
-      setPayPhase("done");
-      setDone({
-        orderId: rec.orderId,
-        endsAt: rec.endsAt,
-        planName: quote.planName,
-        cycleLabel: quote.cycleLabel,
-        total: quote.total,
-        perMonth: quote.perMonth,
-        name: form.name.trim() || "بطل",
-      });
-      setCheckoutStep(3);
-    }
-  };
-
-  const startPayment = async () => {
-    if (pay === "card") {
-      const check = validateCard(card);
-      setCardErrors(check.errors as Record<string, string>);
-      if (!check.valid) {
-        setPayPhase("idle");
-        toast({ kind: "error", title: "بيانات البطاقة ناقصة", body: Object.values(check.errors)[0] });
-        return;
-      }
-    }
+  /**
+   * إرسال الطلب: بنبعت اختيار الباقة وبيانات العضو بس.
+   * **مفيش أي مبلغ بيتبعت من المتصفح** — السيرفر بيحسب الإجمالي وبيرجّعه.
+   */
+  const submitOrder = async () => {
     if (pay === "wallet" && wallet.replace(/\D/g, "").length < 11) {
-      setErrors({ pay: "اكتب رقم المحفظة (11 رقم) عشان نطابق التحويل" });
+      setErrors({ pay: "اكتب رقم المحفظة (11 رقم) عشان نطابق بيه التحويل" });
       toast({ kind: "error", title: "رقم المحفظة ناقص" });
       return;
     }
     setErrors({});
     setPayMsg("");
-    setPayPhase("auth");
-    const res = await authorize({
-      method: pay as PayMethod,
-      amount: Math.round(quote.total),
-      card: pay === "card" ? card : undefined,
-      description: `FitZone Pro — باقة ${quote.planName} / ${quote.cycleLabel}`,
-    });
-    if (res.status === "requires_action") {
-      setIntent(res.reference);
-      setOtp("");
-      setPayPhase("otp");
-      setPayMsg(res.message);
-      toast({ kind: "info", title: "البنك طلب تحقق إضافي", body: "ادخل رمز 3-D Secure اللي وصلك على SMS" });
-      return;
-    }
-    if (!res.ok) {
-      setPayPhase("failed");
-      setPayMsg(res.message);
-      toast({ kind: "error", title: "العملية اترفضت", body: res.message });
-      return;
-    }
-    await finish(res.reference);
-  };
+    setLoading(true);
 
-  const verifyOtp = async () => {
-    if (!/^\d{6}$/.test(otp)) {
-      setPayMsg("الرمز لازم يكون 6 أرقام");
-      setPayPhase("failed");
+    const rec = await confirmSubscription({
+      planId: draft.planId,
+      cycle: draft.cycle,
+      addonIds: draft.addonIds,
+      coupon: draft.coupon,
+      member: { name: form.name.trim(), phone: form.phone.trim(), goal: form.goal },
+      payment: pay,
+      paymentRef: pay === "wallet" ? wallet.replace(/\D/g, "").slice(0, 15) : null,
+    });
+
+    setLoading(false);
+    if (!rec) {
+      setPayMsg("مش قادرين نسجّل الطلب دلوقتي — راجع بياناتك أو كلّمنا على واتساب.");
       return;
     }
-    setPayPhase("auth");
-    const res = await confirmPayment(intent ?? "", otp);
-    if (!res.ok) {
-      setPayPhase("failed");
-      setPayMsg(res.message);
-      toast({ kind: "error", title: "رمز التحقق غلط", body: res.message });
-      return;
-    }
-    setPayMsg(res.message);
-    await finish(res.reference || intent);
+
+    setDone({
+      orderId: rec.orderId,
+      endsAt: rec.endsAt,
+      planName: rec.planName,
+      cycleLabel: quote.cycleLabel,
+      total: rec.total,
+      perMonth: rec.perMonth,
+      name: form.name.trim() || "بطل",
+      payment: pay,
+    });
+    setCheckoutStep(3);
   };
 
   return (
@@ -168,7 +110,7 @@ export default function Checkout() {
       open={checkout.open}
       onClose={closeCheckout}
       size="lg"
-      title={step === 3 ? "تم تفعيل عضويتك 🎉" : "إكمال الاشتراك"}
+      title={step === 3 ? "تم تسجيل طلبك 🎉" : "إكمال الاشتراك"}
       sub={
         step < 3 ? (
           <span className="flex items-center gap-2">
@@ -217,24 +159,18 @@ export default function Checkout() {
                 الخطوة <span className="num font-black text-white">{step + 1}</span> من 3
               </span>
               <button
-                onClick={step === 0 ? () => setCheckoutStep(1) : step === 1 ? submitLead : payPhase === "otp" ? verifyOtp : startPayment}
+                onClick={step === 0 ? () => setCheckoutStep(1) : step === 1 ? submitLead : submitOrder}
                 disabled={loading}
                 className="group flex items-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-black text-white transition hover:bg-brand-soft active:scale-95 disabled:opacity-60"
               >
                 {loading ? (
                   <>
-                    <LoaderCircle className="h-4 w-4 animate-spin" /> {payPhase === "otp" ? "جاري التحقق من البنك…" : "جاري اعتماد العملية…"}
+                    <LoaderCircle className="h-4 w-4 animate-spin" /> جاري تسجيل الطلب…
                   </>
                 ) : step === 2 ? (
-                  payPhase === "otp" ? (
-                    <>
-                      تأكيد الرمز <ArrowLeft className="h-4 w-4" />
-                    </>
-                  ) : (
-                    <>
-                      ادفع {egp(quote.total).replace(" ج.م", "")} ج.م <ArrowLeft className="h-4 w-4 transition group-hover:-translate-x-1" />
-                    </>
-                  )
+                  <>
+                    أكّد الطلب <ArrowLeft className="h-4 w-4 transition group-hover:-translate-x-1" />
+                  </>
                 ) : (
                   <>
                     التالي <ArrowLeft className="h-4 w-4 transition group-hover:-translate-x-1" />
@@ -416,66 +352,19 @@ export default function Checkout() {
   }
 
   function PayStep() {
-    const brand = detectBrand(card.number);
-    const check = validateCard(card);
-    const processing = payPhase === "auth";
-
     return (
       <div className="space-y-4">
-        {/* حالة البيئة */}
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-dashed border-line bg-white/[.02] px-4 py-3">
-          <span className="flex items-center gap-2 text-[11px] font-bold">
-            <span className={cx("h-2 w-2 rounded-full", IS_SANDBOX ? "bg-gold live-dot" : "bg-mint")} />
-            {IS_SANDBOX ? "وضع التجربة (Sandbox) — مفيش فلوس اتخصمت" : "وضع الإنتاج — بوابة دفع حقيقية"}
-            <span className="text-white/35">· provider: <span className="num">{IS_SANDBOX ? "sandbox" : "external"}</span></span>
+        {/* الفاتورة النهائية — بتتأكد على السيرفر قبل التسجيل */}
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-surface/50 px-4 py-3">
+          <span className="text-xs text-white/50">
+            المطلوب دفعه · {quote.cycleLabel}
           </span>
-          <span className="num flex items-center gap-1.5 text-[11px] text-white/40">
-            {processing ? (
-              <>
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin text-brand-soft" /> جاري الاتصال بالبنك…
-              </>
-            ) : (
-              <>
-                auth: <span className="text-white/70">POST /api/pay</span>
-              </>
-            )}
-          </span>
+          <span className="num text-lg font-black text-brand-soft">{egp(quote.total)}</span>
         </div>
-
-        {IS_SANDBOX && (
-          <div className="rounded-2xl border border-line bg-surface/50 p-4">
-            <p className="mb-2 flex items-center gap-2 text-xs font-black">
-              <Sparkles className="h-4 w-4 text-gold" /> بطاقات وهمية للتجربة — اضغط واحدة تتكتب في الخانات
-            </p>
-            <div className="grid gap-1.5 sm:grid-cols-2">
-              {TEST_CARDS.map((t) => {
-                const last4 = t.number.slice(-4);
-                return (
-                  <button
-                    key={t.number}
-                    type="button"
-                    onClick={() => {
-                      setCard({ number: t.number, exp: "12/29", cvv: "123", holder: card.holder || "MAHMOUD ALI" });
-                      setCardErrors({});
-                      setPayPhase("idle");
-                      setPayMsg("");
-                      setPay("card");
-                    }}
-                    className="flex items-center justify-between gap-2 rounded-xl border border-line bg-ink px-3 py-2 text-right transition hover:border-brand/50 hover:bg-brand/5"
-                  >
-                    <span className="num text-[11px] font-black tracking-wider">{t.number}</span>
-                    <span className={cx("shrink-0 text-[10px] font-bold", t.tone === "ok" ? "text-mint" : "text-brand-soft")}>{t.result}</span>
-                    <span className="num hidden shrink-0 text-[10px] text-white/25 sm:inline">••{last4}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         <div className="grid gap-2 sm:grid-cols-2">
           {PAY_METHODS.map((m) => {
-            const Icon = m.id === "card" ? CreditCard : m.id === "wallet" ? Wallet : m.id === "install" ? Split : Banknote;
+            const Icon = m.id === "wallet" ? Wallet : Banknote;
             const on = pay === m.id;
             return (
               <button
@@ -483,7 +372,6 @@ export default function Checkout() {
                 onClick={() => {
                   setPay(m.id);
                   setErrors({});
-                  setPayPhase("idle");
                   setPayMsg("");
                 }}
                 className={cx(
@@ -506,70 +394,29 @@ export default function Checkout() {
           })}
         </div>
 
-        {pay === "card" && (
-          <div className="grid gap-4 rounded-2xl border border-line bg-surface/50 p-4 sm:grid-cols-2">
-            <CardPreview number={card.number} holder={card.holder} exp={card.exp} brand={BRAND_LABEL[brand]} valid={check.valid} />
-            <div className="space-y-3">
-              <Field label="رقم البطاقة" error={cardErrors.number}>
-                <input
-                  value={card.number}
-                  onChange={(e) => {
-                    setCard({ ...card, number: formatCard(e.target.value) });
-                    setCardErrors({});
-                  }}
-                  inputMode="numeric"
-                  dir="ltr"
-                  placeholder="4242 4242 4242 4242"
-                  className={cx(inputCls(cardErrors.number), "num text-left tracking-widest")}
-                />
-              </Field>
-              <Field label="اسم حامل البطاقة" error={cardErrors.holder}>
-                <input value={card.holder} onChange={(e) => setCard({ ...card, holder: e.target.value })} placeholder="MAHMOUD ALI" className={inputCls(cardErrors.holder)} />
-              </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="تاريخ الانتهاء" error={cardErrors.exp}>
-                  <input
-                    value={card.exp}
-                    onChange={(e) => setCard({ ...card, exp: formatExp(e.target.value) })}
-                    dir="ltr"
-                    placeholder="MM/YY"
-                    className={cx(inputCls(cardErrors.exp), "num text-left")}
-                  />
-                </Field>
-                <Field label="CVV" error={cardErrors.cvv}>
-                  <input
-                    value={card.cvv}
-                    onChange={(e) => setCard({ ...card, cvv: e.target.value.replace(/\D/g, "").slice(0, 4) })}
-                    dir="ltr"
-                    placeholder="123"
-                    className={cx(inputCls(cardErrors.cvv), "num text-left")}
-                  />
-                </Field>
-              </div>
-              <p className="flex items-center gap-1.5 text-[10px] text-white/35">
-                <ShieldCheck className="h-3 w-3 text-mint" />
-                {check.valid ? `رقم صحيح على ${BRAND_LABEL[brand]} • آخر 4 أرقام <span className="num">${card.number.replace(/\D/g, "").slice(-4)}</span>` : "بنفحص الرقم بـ Luhn قبل ما نبعت للبنك"}
-              </p>
-            </div>
-          </div>
-        )}
-
         {pay === "wallet" && (
           <div className="rounded-2xl border border-line bg-surface/50 p-4 text-sm leading-relaxed text-white/60">
-            حوّل <span className="num font-black text-white">{egp(quote.total)}</span> على محافظ الجيم، واكتب رقمك نطابق بيك التحويل:
+            حوّل <span className="num font-black text-white">{egp(quote.total)}</span> على محفظة الجيم، واكتب رقمك عشان نطابق بيه التحويل:
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {[
-                { n: "فودافون كاش", v: "01000000000" },
-                { n: "إنستا باي", v: "fitzone@instapay" },
-              ].map((w) => (
-                <div key={w.n} className="flex items-center justify-between rounded-xl border border-line bg-ink px-3 py-2.5">
-                  <span className="text-xs font-bold text-white/50">{w.n}</span>
-                  <span className="num text-sm font-black">{w.v}</span>
-                </div>
+              {PAY_TARGETS.map((w) => (
+                <button
+                  key={w.name}
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(w.value);
+                    toast({ kind: "info", title: "اتنسخ", body: `${w.name}: ${w.value}` });
+                  }}
+                  className="flex items-center justify-between rounded-xl border border-line bg-ink px-3 py-2.5 text-right transition hover:border-brand/50"
+                >
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-white/50">
+                    <Copy className="h-3 w-3" /> {w.name}
+                  </span>
+                  <span className="num text-sm font-black">{w.value}</span>
+                </button>
               ))}
             </div>
             <div className="mt-3">
-              <Field label="رقم المحفظة اللي حوّلت منها">
+              <Field label="رقم المحفظة اللي هتحوّل منها" error={errors.pay}>
                 <input
                   value={wallet}
                   onChange={(e) => {
@@ -586,69 +433,15 @@ export default function Checkout() {
           </div>
         )}
 
-        {pay === "install" && (
-          <div className="rounded-2xl border border-line bg-surface/50 p-4">
-            <div className="grid gap-2 sm:grid-cols-3">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className={cx("rounded-xl border p-3", i === 0 ? "border-brand bg-brand/10" : "border-line")}>
-                  <div className="flex items-center gap-1.5 text-[11px] text-white/45">
-                    <CalendarClock className="h-3.5 w-3.5" /> {i === 0 ? "اليوم" : `بعد ${i * 30} يوم`}
-                  </div>
-                  <div className="num mt-1 text-lg font-black">{egp(quote.total / 3)}</div>
-                </div>
-              ))}
-            </div>
-            <p className="mt-3 text-[11px] leading-relaxed text-white/40">
-              التقسيط على الاشتراكات السنوية و٦ شهور، بدون فوائد. أول قسط بيتحسب دلوقتي والتانيين ليهما مواعيد ثابتة.
-            </p>
-          </div>
-        )}
-
         {pay === "cash" && (
           <div className="rounded-2xl border border-line bg-surface/50 p-4 text-sm text-white/60">
-            هنسيبلك مكانك <span className="num">48</span> ساعة باسم <span className="font-bold text-white">{form.name || "يا بطل"}</span> — تعالي بالكاش لأي كاشير وادّعي برقم العضوية بعد التأكيد.
+            هنسيبلك مكانك <span className="num">48</span> ساعة باسم <span className="font-bold text-white">{form.name || "يا بطل"}</span> — تعالى بالكاش لأي كاشير
+            وقول رقم الطلب، والعضوية هتتفعّل على طول بعد الدفع.
             <div className="mt-3 rounded-xl border border-line bg-ink px-3 py-2.5 text-xs text-white/50">{GYM.address}</div>
           </div>
         )}
 
-        {/* 3-D Secure */}
-        {payPhase === "otp" && (
-          <motion.div suppressHydrationWarning initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-gold/40 bg-gold/[.07] p-4">
-            <div className="mb-2 flex items-center gap-2 text-xs font-black text-gold">
-              <Lock className="h-4 w-4" /> تحقق البنك الإضافي (3-D Secure)
-            </div>
-            <p className="mb-3 text-[11px] leading-relaxed text-white/55">
-              {payMsg || "ادخل الرمز اللي بعتلك إياه البنك على رسالتك."} <span className="text-white/35">·OTP أي 6 أرقام، و000000 بيرفض</span>
-            </p>
-            <div className="flex gap-2">
-              <input
-                value={otp}
-                onChange={(e) => {
-                  setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
-                  setPayPhase("idle");
-                  setPayMsg("");
-                }}
-                dir="ltr"
-                inputMode="numeric"
-                placeholder="••••••"
-                className="num w-full rounded-xl border border-line bg-ink px-3.5 py-3 text-left text-lg tracking-[.4em] outline-none focus:border-gold"
-              />
-              <button
-                type="button"
-                onClick={verifyOtp}
-                className="shrink-0 rounded-xl bg-gold px-5 text-sm font-black text-black transition hover:brightness-110"
-              >
-                تأكيد
-              </button>
-            </div>
-            <button type="button" onClick={() => { setPayPhase("idle"); setIntent(null); }} className="mt-2 text-[11px] text-white/40 hover:text-white">
-              إلغاء والرجوع لاختيار طريقة تانية
-            </button>
-          </motion.div>
-        )}
-
-        {/* فشل / رسالة العملية */}
-        {(payPhase === "failed" || errors.pay) && (
+        {(payMsg || errors.pay) && (
           <motion.p suppressHydrationWarning initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="flex items-start gap-2 rounded-xl border border-brand/40 bg-brand/10 px-3.5 py-2.5 text-xs font-bold text-brand-soft">
             <X className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {payMsg || errors.pay}
           </motion.p>
@@ -656,9 +449,8 @@ export default function Checkout() {
 
         <p className="flex items-start gap-2 text-[11px] leading-relaxed text-white/35">
           <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-mint" />
-          بيانات الكارت بتتفحص في المتصفح وعلى السيرفر (Luhn + قرار البنك) ومش بتترسل لأي مكان ولا بتتخزن. عشان تشغيل
-          حقيقي: حط مفتاح بوابة الدفع في <span className="num text-white/55">NEXT_PUBLIC_PAYMENT_PROVIDER</span> وبدّل
-          جسم <span className="num text-white/55">authorize()</span> في <span className="num text-white/55">app/lib/payment.ts</span>.
+          الموقع <span className="font-bold text-white/60">مابيقبلش دفع بالفيزا أو أي كارت</span> ومابيطلبش منك أي بيانات بنكية أبدًا. الإجمالي بيتحسب على
+          السيرفر، والعضوية بتتفعّل بعد ما الإدارة تأكد استلام الفلوس.
         </p>
       </div>
     );
@@ -680,8 +472,10 @@ export default function Checkout() {
         <div>
           <h4 className="text-xl font-black">أهلاً يا {done?.name?.split(" ")[0] || "بطل"} 👊</h4>
           <p className="mt-1 text-sm text-white/50">
-            طلبك اتسجّل وهيبدأ سريانه بعد تأكيد الدفع. رقم الطلب:{" "}
-            <span className="num font-black text-white">{orderId}</span>
+            {done?.payment === "cash"
+              ? "طلبك اتسجّل — تعالى ادفع كاش في الفرع خلال 48 ساعة والعضوية هتتفعّل."
+              : "طلبك اتسجّل — أول ما نأكد التحويل هتتفعّل العضوية على طول."}{" "}
+            رقم الطلب: <span className="num font-black text-white">{orderId}</span>
           </p>
         </div>
 
@@ -745,44 +539,5 @@ function Field({
       {children}
       {error && <span className="mt-1 block text-[11px] font-bold text-brand-soft">{error}</span>}
     </label>
-  );
-}
-
-function formatCard(v: string) {
-  return v
-    .replace(/\D/g, "")
-    .slice(0, 16)
-    .replace(/(.{4})/g, "$1 ")
-    .trim();
-}
-
-function formatExp(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 4);
-  return d.length <= 2 ? d : `${d.slice(0, 2)}/${d.slice(2)}`;
-}
-
-function CardPreview({ number, holder, exp, brand, valid }: { number: string; holder: string; exp: string; brand: string; valid: boolean }) {
-  const digits = number.replace(/\D/g, "");
-  const shown = (digits + "••••••••••••••••").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
-  return (
-    <div className="relative flex h-full min-h-[170px] flex-col justify-between overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-brand-dark/60 via-ink to-black p-4">
-      <span className="absolute -left-8 -top-8 h-28 w-28 rounded-full bg-brand/30 blur-2xl" />
-      <div className="relative flex items-center justify-between">
-        <span className="h-7 w-10 rounded-md bg-gradient-to-br from-gold to-gold/40" />
-        <span className={cx("text-[11px] font-black tracking-widest", valid ? "text-white/70" : "text-brand-soft")}>{brand}</span>
-      </div>
-      <p className="num relative text-lg font-bold tracking-[.12em] text-white/90">{shown}</p>
-      {digits.length > 0 && !valid && <p className="relative text-[10px] font-bold text-brand-soft">رقم غير مطابق لفحص Luhn</p>}
-      <div className="relative flex items-end justify-between text-[11px]">
-        <div>
-          <p className="text-white/35">CARD HOLDER</p>
-          <p className="font-bold text-white/80">{holder || "—"}</p>
-        </div>
-        <div className="text-left">
-          <p className="text-white/35">EXPIRES</p>
-          <p className="num font-bold text-white/80">{exp || "MM/YY"}</p>
-        </div>
-      </div>
-    </div>
   );
 }

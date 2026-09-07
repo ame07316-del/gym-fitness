@@ -36,6 +36,7 @@ export async function GET(request: Request) {
     scope: scoped ? "own" : "all",
     subscriptions: {
       total: subs.total,
+      pending: subs.pending,
       active: subs.active,
       frozen: subs.frozen,
       cancelled: subs.cancelled,

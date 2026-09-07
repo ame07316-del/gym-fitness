@@ -1,13 +1,14 @@
 /** استعلامات الاشتراكات — كل SQL خاص بالاشتراكات هنا وبس. */
 import { getDb, now } from ".";
 
-export type SubStatus = "active" | "frozen" | "cancelled" | "expired";
+export type SubStatus = "pending" | "active" | "frozen" | "cancelled" | "expired";
 
 export type SubscriptionRow = {
   order_id: string;
   member_name: string;
   member_phone: string;
   member_goal: string | null;
+  plan_id: string | null;
   plan_name: string;
   cycle: string;
   months: number;
@@ -17,8 +18,8 @@ export type SubscriptionRow = {
   per_month: number;
   payment_method: string;
   payment_ref: string | null;
-  card_brand: string | null;
-  card_last4: string | null;
+  paid_at: number | null;
+  paid_by: string | null;
   coach_id: string | null;
   status: SubStatus;
   created_at: number;
@@ -32,6 +33,7 @@ export type SubscriptionRow = {
 export type Subscription = {
   orderId: string;
   member: { name: string; phone: string; goal: string | null };
+  planId: string | null;
   planName: string;
   cycle: string;
   months: number;
@@ -41,7 +43,7 @@ export type Subscription = {
   perMonth: number;
   payment: string;
   paymentRef: string | null;
-  card: { brand: string | null; last4: string | null };
+  paidAt: number | null;
   coachId: string | null;
   coachName: string | null;
   status: SubStatus;
@@ -66,6 +68,7 @@ const parseAddons = (raw: string): string[] => {
 export const toSubscription = (r: JoinedRow): Subscription => ({
   orderId: r.order_id,
   member: { name: r.member_name, phone: r.member_phone, goal: r.member_goal },
+  planId: r.plan_id,
   planName: r.plan_name,
   cycle: r.cycle,
   months: r.months,
@@ -75,7 +78,7 @@ export const toSubscription = (r: JoinedRow): Subscription => ({
   perMonth: r.per_month,
   payment: r.payment_method,
   paymentRef: r.payment_ref,
-  card: { brand: r.card_brand, last4: r.card_last4 },
+  paidAt: r.paid_at,
   coachId: r.coach_id,
   coachName: r.coach_name ?? null,
   status: r.status,
@@ -136,6 +139,7 @@ export function createSubscription(input: {
   memberName: string;
   memberPhone: string;
   memberGoal?: string | null;
+  planId?: string | null;
   planName: string;
   cycle: string;
   months: number;
@@ -145,20 +149,19 @@ export function createSubscription(input: {
   perMonth: number;
   payment: string;
   paymentRef?: string | null;
-  cardBrand?: string | null;
-  cardLast4?: string | null;
   coachId?: string | null;
+  status?: SubStatus;
   endsAt: number;
 }): Subscription {
   const ts = now();
   getDb()
     .prepare(
       `INSERT INTO subscriptions
-        (order_id, member_name, member_phone, member_goal, plan_name, cycle, months, addon_ids, coupon,
-         total, per_month, payment_method, payment_ref, card_brand, card_last4, coach_id, status,
+        (order_id, member_name, member_phone, member_goal, plan_id, plan_name, cycle, months, addon_ids, coupon,
+         total, per_month, payment_method, payment_ref, coach_id, status,
          created_at, updated_at, ends_at)
-       VALUES (@orderId, @memberName, @memberPhone, @memberGoal, @planName, @cycle, @months, @addonIds, @coupon,
-         @total, @perMonth, @payment, @paymentRef, @cardBrand, @cardLast4, @coachId, 'active',
+       VALUES (@orderId, @memberName, @memberPhone, @memberGoal, @planId, @planName, @cycle, @months, @addonIds, @coupon,
+         @total, @perMonth, @payment, @paymentRef, @coachId, @status,
          @ts, @ts, @endsAt)
        ON CONFLICT(order_id) DO UPDATE SET updated_at = @ts`, // idempotency: نفس رقم الطلب مايتسجلش مرتين
     )
@@ -167,6 +170,7 @@ export function createSubscription(input: {
       memberName: input.memberName,
       memberPhone: input.memberPhone,
       memberGoal: input.memberGoal ?? null,
+      planId: input.planId ?? null,
       planName: input.planName,
       cycle: input.cycle,
       months: input.months,
@@ -176,9 +180,8 @@ export function createSubscription(input: {
       perMonth: Math.round(input.perMonth),
       payment: input.payment,
       paymentRef: input.paymentRef ?? null,
-      cardBrand: input.cardBrand ?? null,
-      cardLast4: input.cardLast4 ?? null,
       coachId: input.coachId ?? null,
+      status: input.status ?? "pending",
       ts,
       endsAt: input.endsAt,
     });
@@ -196,6 +199,8 @@ export function setSubscriptionStatus(
       `UPDATE subscriptions SET
         status = @status,
         updated_at = @ts,
+        paid_at = CASE WHEN @status = 'active' AND paid_at IS NULL THEN @ts ELSE paid_at END,
+        paid_by = CASE WHEN @status = 'active' AND paid_at IS NULL THEN @actor ELSE paid_by END,
         cancelled_at  = CASE WHEN @status = 'cancelled' THEN @ts ELSE NULL END,
         cancelled_by  = CASE WHEN @status = 'cancelled' THEN @actor ELSE NULL END,
         cancel_reason = CASE WHEN @status = 'cancelled' THEN @reason ELSE NULL END
@@ -233,6 +238,7 @@ export function subscriptionStats(coachId?: string | null) {
     .prepare(
       `SELECT
         COUNT(*) AS total,
+        COALESCE(SUM(CASE WHEN status = 'pending'   THEN 1 ELSE 0 END), 0) AS pending,
         COALESCE(SUM(CASE WHEN status = 'active'    THEN 1 ELSE 0 END), 0) AS active,
         COALESCE(SUM(CASE WHEN status = 'frozen'    THEN 1 ELSE 0 END), 0) AS frozen,
         COALESCE(SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END), 0) AS cancelled,
@@ -240,7 +246,15 @@ export function subscriptionStats(coachId?: string | null) {
         COALESCE(SUM(CASE WHEN status IN ('active','frozen') THEN total ELSE 0 END), 0) AS revenue
        FROM subscriptions${scope}`,
     )
-    .get(params) as { total: number; active: number; frozen: number; cancelled: number; expired: number; revenue: number };
+    .get(params) as {
+      total: number;
+      pending: number;
+      active: number;
+      frozen: number;
+      cancelled: number;
+      expired: number;
+      revenue: number;
+    };
 
   const byPlan = db
     .prepare(`SELECT plan_name AS plan, COUNT(*) AS count FROM subscriptions${scope} GROUP BY plan_name ORDER BY count DESC`)

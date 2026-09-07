@@ -218,6 +218,60 @@ describe("إلغاء وحذف الاشتراكات", () => {
   });
 });
 
+/* ======================== تأكيد الدفع (بدل بوابة الكروت) ======================== */
+
+describe("تأكيد استلام الدفع", () => {
+  const pending = "FZ-2026-DEMO06";
+  const params = (orderId: string) => ({ params: Promise.resolve({ orderId }) });
+
+  it("الاشتراك الجديد بيبدأ pending ومابيتحسبش في الإيراد", async () => {
+    const stats = await (await adminStats(request("/api/admin/stats", { session: owner }))).json();
+    expect(stats.subscriptions.pending).toBeGreaterThan(0);
+
+    const list = await (await listSubs(request("/api/admin/subscriptions?status=pending", { session: owner }))).json();
+    expect(list.items.some((s: { orderId: string }) => s.orderId === pending)).toBe(true);
+  });
+
+  it("الكوتش ما يقدرش يأكد الدفع (403)", async () => {
+    const res = await patchSub(
+      request(`/api/admin/subscriptions/${pending}`, { method: "PATCH", body: { action: "confirm_payment" }, session: coach }),
+      params(pending),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("الاستقبال كمان ممنوع — الصلاحية لمدير الفرع فما فوق", async () => {
+    const res = await patchSub(
+      request(`/api/admin/subscriptions/${pending}`, { method: "PATCH", body: { action: "confirm_payment" }, session: reception }),
+      params(pending),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("مدير الفرع بيأكد الدفع → active، والتأكيد التاني 409", async () => {
+    const ok = await patchSub(
+      request(`/api/admin/subscriptions/${pending}`, { method: "PATCH", body: { action: "confirm_payment" }, session: admin }),
+      params(pending),
+    );
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).subscription.status).toBe("active");
+
+    const again = await patchSub(
+      request(`/api/admin/subscriptions/${pending}`, { method: "PATCH", body: { action: "confirm_payment" }, session: admin }),
+      params(pending),
+    );
+    expect(again.status).toBe(409);
+  });
+
+  it("اشتراك نشط أصلاً ما ينفعش يتأكد دفعه (409)", async () => {
+    const res = await patchSub(
+      request(`/api/admin/subscriptions/FZ-2026-DEMO03`, { method: "PATCH", body: { action: "confirm_payment" }, session: owner }),
+      params("FZ-2026-DEMO03"),
+    );
+    expect(res.status).toBe(409);
+  });
+});
+
 /* ============================== إدارة المستخدمين ============================== */
 
 describe("المستخدمون والجلسات", () => {

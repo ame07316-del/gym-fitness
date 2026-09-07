@@ -95,20 +95,21 @@ export function seedIfEmpty(db: Database) {
   const day = 86_400_000;
   const ts = Date.now();
   const subs = [
-    { orderId: "FZ-2026-DEMO01", name: "منى خالد", phone: "01012345678", plan: "برو", cycle: "yearly", months: 12, total: 9603, per: 800, coach: "sara", status: "active", ageDays: 40 },
-    { orderId: "FZ-2026-DEMO02", name: "أحمد سمير", phone: "01099998888", plan: "VIP", cycle: "semiannual", months: 6, total: 8721, per: 1450, coach: "ahmed", status: "active", ageDays: 12 },
-    { orderId: "FZ-2026-DEMO03", name: "كريم فؤاد", phone: "01234567890", plan: "أساسي", cycle: "monthly", months: 1, total: 570, per: 570, coach: null, status: "active", ageDays: 3 },
-    { orderId: "FZ-2026-DEMO04", name: "سلمى عادل", phone: "01555512345", plan: "برو", cycle: "quarterly", months: 3, total: 2515, per: 838, coach: "mohamed", status: "frozen", ageDays: 70 },
-    { orderId: "FZ-2026-DEMO05", name: "يوسف جابر", phone: "01111122233", plan: "برو", cycle: "monthly", months: 1, total: 912, per: 912, coach: "ahmed", status: "cancelled", ageDays: 120 },
+    { orderId: "FZ-2026-DEMO01", name: "منى خالد", phone: "01012345678", planId: "pro", plan: "برو", cycle: "yearly", months: 12, total: 9603, per: 800, pay: "wallet", coach: "sara", status: "active", ageDays: 40 },
+    { orderId: "FZ-2026-DEMO02", name: "أحمد سمير", phone: "01099998888", planId: "vip", plan: "VIP", cycle: "semiannual", months: 6, total: 8721, per: 1450, pay: "cash", coach: "ahmed", status: "active", ageDays: 12 },
+    { orderId: "FZ-2026-DEMO03", name: "كريم فؤاد", phone: "01234567890", planId: "basic", plan: "أساسي", cycle: "monthly", months: 1, total: 570, per: 570, pay: "cash", coach: null, status: "active", ageDays: 3 },
+    { orderId: "FZ-2026-DEMO04", name: "سلمى عادل", phone: "01555512345", planId: "pro", plan: "برو", cycle: "quarterly", months: 3, total: 2515, per: 838, pay: "wallet", coach: "mohamed", status: "frozen", ageDays: 70 },
+    { orderId: "FZ-2026-DEMO05", name: "يوسف جابر", phone: "01111122233", planId: "pro", plan: "برو", cycle: "monthly", months: 1, total: 912, per: 912, pay: "wallet", coach: "ahmed", status: "cancelled", ageDays: 120 },
+    { orderId: "FZ-2026-DEMO06", name: "ريم شريف", phone: "01277788899", planId: "pro", plan: "برو", cycle: "monthly", months: 1, total: 912, per: 912, pay: "wallet", coach: null, status: "pending", ageDays: 0 },
   ];
 
   const insertSub = db.prepare(
     `INSERT INTO subscriptions
-      (order_id, member_name, member_phone, member_goal, plan_name, cycle, months, addon_ids, coupon,
-       total, per_month, payment_method, payment_ref, card_brand, card_last4, coach_id, status,
+      (order_id, member_name, member_phone, member_goal, plan_id, plan_name, cycle, months, addon_ids, coupon,
+       total, per_month, payment_method, payment_ref, paid_at, coach_id, status,
        created_at, updated_at, ends_at, cancelled_at, cancelled_by, cancel_reason)
-     VALUES (@orderId, @name, @phone, 'تنشيف', @plan, @cycle, @months, '[]', NULL,
-       @total, @per, 'card', NULL, 'visa', '4242', @coachId, @status,
+     VALUES (@orderId, @name, @phone, 'تنشيف', @planId, @plan, @cycle, @months, '[]', NULL,
+       @total, @per, @pay, NULL, @paidAt, @coachId, @status,
        @createdAt, @createdAt, @endsAt, @cancelledAt, NULL, @reason)`,
   );
   for (const s of subs) {
@@ -117,13 +118,16 @@ export function seedIfEmpty(db: Database) {
       orderId: s.orderId,
       name: s.name,
       phone: s.phone,
+      planId: s.planId,
       plan: s.plan,
+      pay: s.pay,
       cycle: s.cycle,
       months: s.months,
       total: s.total,
       per: s.per,
       coachId: s.coach ? coachOf(s.coach) : null,
       status: s.status,
+      paidAt: s.status === "pending" || s.status === "cancelled" ? null : createdAt,
       createdAt,
       endsAt: createdAt + s.months * 30 * day,
       cancelledAt: s.status === "cancelled" ? ts - 5 * day : null,

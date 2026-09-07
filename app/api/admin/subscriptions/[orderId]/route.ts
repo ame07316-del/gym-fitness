@@ -10,6 +10,7 @@ export const runtime = "nodejs";
 
 /** الحركات المسموح بيها وكل واحدة محتاجة صلاحية إيه */
 const ACTIONS = {
+  confirm_payment: { status: "active" as SubStatus, permission: "subscriptions:update" as const, label: "تأكيد استلام الدفع" },
   cancel: { status: "cancelled" as SubStatus, permission: "subscriptions:cancel" as const, label: "إلغاء الاشتراك" },
   freeze: { status: "frozen" as SubStatus, permission: "subscriptions:update" as const, label: "تجميد الاشتراك" },
   resume: { status: "active" as SubStatus, permission: "subscriptions:update" as const, label: "استئناف الاشتراك" },
@@ -19,8 +20,8 @@ const ACTIONS = {
 type ActionKey = keyof typeof ACTIONS;
 
 /**
- * تعديل اشتراك: إلغاء / تجميد / استئناف / إسناد كوتش.
- * body: { action?: "cancel"|"freeze"|"resume"|"reactivate", reason?: string, coachId?: string|null }
+ * تعديل اشتراك: تأكيد دفع / إلغاء / تجميد / استئناف / إسناد كوتش.
+ * body: { action?: "confirm_payment"|"cancel"|"freeze"|"resume"|"reactivate", reason?: string, coachId?: string|null }
  */
 export async function PATCH(request: Request, ctx: { params: Promise<{ orderId: string }> }) {
   const guard = await authorize(request);
@@ -46,13 +47,20 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ orderId: 
     if (!can(role, action.permission)) return errorJson(`مش مسموح لك تعمل: ${action.label}`, 403, { code: "forbidden" });
     if (existing.status === action.status) return errorJson(`الاشتراك بالفعل ${action.status}`, 409);
     if (key === "cancel" && existing.status === "cancelled") return errorJson("الاشتراك ملغي بالفعل", 409);
+    if (key === "confirm_payment" && existing.status !== "pending") {
+      return errorJson("الاشتراك ده مش مستني تأكيد دفع", 409);
+    }
+    // اشتراك لسه مستني الدفع ما ينفعش يتجمّد أو يتستأنف قبل ما يتأكد
+    if (existing.status === "pending" && (key === "freeze" || key === "resume" || key === "reactivate")) {
+      return errorJson("أكّد استلام الدفع الأول", 409);
+    }
 
     updated = setSubscriptionStatus(existing.orderId, action.status, { id: guard.ctx.user.id, reason })!;
     done.push(action.label);
 
     audit({
       actor: actorOf(guard.ctx),
-      action: "subscription.status_changed",
+      action: key === "confirm_payment" ? "subscription.payment_confirmed" : "subscription.status_changed",
       entity: "subscription",
       entityId: existing.orderId,
       meta: { from: existing.status, to: action.status, reason },

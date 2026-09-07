@@ -15,6 +15,7 @@ export type AuditAction =
   | "user.deleted"
   | "subscription.created"
   | "subscription.status_changed"
+  | "subscription.payment_confirmed"
   | "subscription.coach_assigned"
   | "subscription.deleted"
   | "booking.created"

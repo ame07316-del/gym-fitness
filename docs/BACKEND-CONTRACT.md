@@ -7,8 +7,7 @@
 ```bash
 # .env.local
 BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← الأنسب (من غير CORS)
-# BACKEND_ONLY=bookings,subscribe           # اختياري: البروكسي للمسارات دي بس
-# NEXT_PUBLIC_PAYMENT_PROVIDER=paymob       # لما تخلص شيت مفاتيح البوابة الحقيقية
+# BACKEND_ONLY=bookings,subscribe,quote     # اختياري: البروكسي للمسارات دي بس
 ```
 
 | الوضع | اللي بيحصل |
@@ -32,50 +31,70 @@ BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← ال
 ```
 > لو `fields` موجودة، الواجهة بتعرضها تحت كل حقل أوتوماتيك.
 
-### `POST /api/subscribe` — تفعيل اشتراك
-```jsonc
-// request (كامل كائن العضوية من المتصفح)
-{ "orderId": "FZ-2026-K3JD22", "planId": "pro", "planName": "برو", "cycle": "quarterly",
-  "months": 3, "addonIds": ["coach","nutrition"], "coupon": "FIT10",
-  "member": { "name": "منى خالد", "phone": "01099999999", "goal": "لياقة عامة وصحة" },
-  "payment": "card", "total": 2870, "perMonth": 956,
-  "startedAt": 1788601971936, "endsAt": 1870141971936, "status": "active",
-  "autoRenew": true, "frozenAt": null, "frozenDaysUsed": 0 }
+### `POST /api/subscribe` — تسجيل طلب اشتراك
 
-// 201
-{ "ok": true, "order": { "orderId": "FZ-2026-K3JD22", "status": "active" }, "invoice": "INV-FZ-2026-K3JD22" }
+> ⚠️ **السيرفر هو اللي بيحسب الفلوس.** الطلب مابيبعتش `total` ولا `perMonth` ولا `months`
+> ولا `endsAt` ولا `orderId` — ولو بعتهم بيتتجاهلوا تمامًا. ده كان أخطر بند في مراجعة الأمان.
+
+```jsonc
+// request — اختيارات بس + بيانات العضو
+{ "planId": "pro", "cycle": "quarterly", "addonIds": ["coach","nutrition"], "coupon": "FIT10",
+  "member": { "name": "منى خالد", "phone": "01099999999", "goal": "لياقة عامة وصحة" },
+  "payment": "wallet" | "cash", "paymentRef": "01012345678" }
+
+// 201 — الأرقام كلها محسوبة على السيرفر، والحالة pending لحد تأكيد الإدارة
+{ "ok": true,
+  "order": { "orderId": "FZ-MTR2K3QY-A9E560", "planId": "pro", "planName": "برو", "cycle": "quarterly",
+             "months": 3, "addonIds": ["coach","nutrition"], "coupon": "FIT10",
+             "total": 2870, "perMonth": 956, "payment": "wallet", "paymentRef": "01012345678",
+             "status": "pending", "createdAt": 1788601971936, "endsAt": 1796377971936,
+             "member": { "name": "منى خالد", "phone": "01099999999", "goal": "…" } },
+  "invoice": "INV-FZ-MTR2K3QY-A9E560",
+  "message": "تم تسجيل طلب عضوية منى خالد — برو. الاشتراك هيتفعّل بعد تأكيد التحويل." }
+
+// 422 — باقة/مدة/إضافة/كوبون/طريقة دفع مش صحيحة
+{ "error": "بيانات الاشتراك غير مكتملة", "fields": { "planId": "الباقة دي مش موجودة" } }
 ```
+
 `GET /api/subscribe` → إحصائيات (`total`, `revenue`, `byPlan`) للداشبورد.
 🔒 **محمي**: محتاج كوكي جلسة إدارية + صلاحية `subscriptions:read`، وبيرجع `401` من غيرها.
 `revenue` بترجع `null` للأدوار اللي مالهاش `revenue:read` (الاستقبال/الكوتش)، والكوتش بيشوف أعضاءه بس.
 نفس الكلام على `GET /api/bookings`. (قبل كده الاتنين كانوا مفتوحين للعالم وبيرجعوا أسماء وتليفونات — دي كانت ثغرة واتقفلت.)
 
-### `POST /api/pay` — اعتماد عملية الدفع
+### `POST /api/quote` — التسعيرة الرسمية
+
+عام (بس عليه rate limit) — الواجهة بتعرض حسابها المحلي فورًا، والسيرفر هو المرجع.
+
 ```jsonc
 // request
-{ "method": "card" | "wallet" | "install" | "cash", "amount": 2870,
-  "card": { "number": "4242 4242 4242 4242", "exp": "12/29", "cvv": "123", "holder": "MAHMOUD ALI" },
-  "description": "FitZone Pro — باقة برو / ٣ شهور", "provider": "paymob" }
+{ "planId": "pro", "cycle": "yearly", "addonIds": ["nutrition"], "coupon": "FIT10" }
 
-// 200 — محتاج تحقق إضافي (3-D Secure)
-{ "ok": true, "status": "requires_action", "reference": "pi_s1_xxx", "amount": 2870,
-  "brand": "visa", "last4": "4242", "message": "البنك طلب تحقق إضافي (3-D Secure)", "provider": "paymob" }
+// 200
+{ "ok": true,
+  "draft": { "planId": "pro", "cycle": "yearly", "addonIds": ["nutrition"], "coupon": "FIT10" },
+  "quote": { "planName": "برو", "cycleLabel": "سنوي", "months": 12, "subtotal": 13200,
+             "cycleDiscount": 2376, "couponDiscount": 1082.4, "net": 9741.6, "vat": 1363.82,
+             "total": 11105.42, "perMonth": 925.45, "coupon": "FIT10", "couponError": null } }
 
-// 200 — خلص على طول (محفظة/تقسيط/كاش)
-{ "ok": true, "status": "succeeded", "reference": "pi_s1_xxx", "message": "…" }
-
-// 402 — رفض البنك
-{ "ok": false, "status": "failed", "code": "card_declined", "message": "البنك رفض الكارت…" }
+// 422 — قيم مش موجودة في الكتالوج
+{ "error": "بيانات الاشتراك غير صحيحة", "fields": { "cycle": "مدة الاشتراك دي مش موجودة" } }
 ```
 
-### `POST /api/pay/confirm` — تأكيد رمز الـ OTP
-```jsonc
-// request
-{ "reference": "pi_s1_xxx", "code": "123456" }
-// 200 → { "ok": true, "status": "succeeded", "reference": "…", "amount": 2870 }
-// 401 → { "ok": false, "status": "requires_action", "message": "رمز التحقق غير صحيح…" }
-// 404 → العملية مش موجودة / انتهت صلاحيتها
-```
+### ❌ الدفع بالكروت — اتشال من المشروع خالص
+
+`POST /api/pay` و `POST /api/pay/confirm` **اتمسحوا** (بيرجعوا 404 دلوقتي)، ومعاهم كل ما يخص
+الكروت: خانات الكارت، فحص Luhn، اكتشاف الشعار، خطوة 3-D Secure، والأعمدة `card_brand`/`card_last4`.
+
+الطريقة الحالية:
+
+1. العضو بيختار `wallet` (تحويل فودافون كاش/إنستا باي) أو `cash` (دفع في الفرع).
+2. الاشتراك بيتسجّل `pending` ومابيتحسبش في الإيراد.
+3. موظف عنده `subscriptions:update` بيضغط **تأكيد الدفع** في `/admin`
+   (`PATCH /api/admin/subscriptions/[orderId]` بـ `{"action":"confirm_payment"}`)
+   → الحالة تبقى `active` مع `paid_at` + `paid_by` + سطر في سجل العمليات.
+
+لو رجّعت بوابة أونلاين في المستقبل: خليها redirect/tokenization + webhook موقّع، وما ترجّعش
+خانات الكارت للواجهة.
 
 ### `/api/admin/*` — لوحة الإدارة (بتفضل جوّه نكست)
 
@@ -87,7 +106,7 @@ BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← ال
 | `/api/admin/auth/password` | POST | جلسة (بيلغي كل الجلسات التانية) |
 | `/api/admin/stats` | GET | `dashboard:view` |
 | `/api/admin/subscriptions` | GET | `subscriptions:read` أو `:read:own` |
-| `/api/admin/subscriptions/[orderId]` | PATCH | `subscriptions:update` / `:cancel` |
+| `/api/admin/subscriptions/[orderId]` | PATCH | `subscriptions:update` (تأكيد دفع/تجميد/استئناف/إسناد كوتش) · `subscriptions:cancel` (إلغاء) |
 | `/api/admin/subscriptions/[orderId]` | DELETE | `subscriptions:delete` (المدير العام بس) |
 | `/api/admin/bookings` · `/[id]` | GET/PATCH/DELETE | `bookings:*` |
 | `/api/admin/users` · `/[id]` | GET/POST/PATCH/DELETE | `users:read` / `users:manage` |
@@ -96,13 +115,14 @@ BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← ال
 كل طلب بيغيّر حالة لازم يبعت هيدر `x-csrf-token` بنفس قيمة الكوكي `fz_csrf`
 (والسيرفر بيقارنها بالهاش المربوط بالجلسة). لو ناقصة → `403 { code: "csrf" }`.
 
-**ثوابت لازم تتحافظ** (الواجهة بتقرا عليها): `ok`, `status` ∈ `succeeded|requires_action|failed`, `reference`, `message`, `amount`. وأي حاجة تانية تزوّدها (invoice id, gateway id, payment_url) بتوصل في `res.data` من غير ما تحتاج تعديل في الفرونت.
+**ثوابت لازم تتحافظ** (الواجهة بتقرا عليها): `ok`, `order.orderId`, `order.total`, `order.perMonth`, `order.months`, `order.endsAt`, `order.status` ∈ `pending|active|frozen|cancelled|expired`, `invoice`, `message`, و`fields` وقت الأخطاء. وأي حاجة تانية تزوّدها بتوصل في `res.data` من غير تعديل في الفرونت.
 
 ### قواعد الفيلدز المستخدمة في الواجهة
 - الاسم: `trim().length >= 3`
 - الموبايل: `/^(?:\+?2|002)?01[0-9]{9}$/` (المسافات والشرطات بتتشال الأول، و`+2`/`002` اختيارية)
-- القيمة: `total > 0` · `months` بين 1 و24 · `addonIds` مصفوفة ≤ 12 عنصر
-- `code` للـ OTP: 6 أرقام
+- الباقة/المدة/الإضافات: لازم تكون موجودة في الكتالوج، وغير كده `422` (مفيش رجوع لقيمة افتراضية بصمت)
+- طريقة الدفع: `wallet` أو `cash` بس
+- المبالغ: **مابتتقبلش من العميل خالص** — بتتحسب على السيرفر
 
 ## 3) سكيل البوكسي في Laravel
 
@@ -112,8 +132,7 @@ Route::post('/bookings',  [BookingController::class, 'store']);
 Route::get('/bookings',   [BookingController::class, 'index']);
 Route::post('/subscribe', [SubscriptionController::class, 'store']);
 Route::get('/subscribe',  [SubscriptionController::class, 'stats']);
-Route::post('/pay',        [PaymentController::class, 'authorize']);
-Route::post('/pay/confirm',[PaymentController::class, 'confirm']);
+Route::post('/quote',     [SubscriptionController::class, 'quote']);   // تسعيرة رسمية
 ```
 
 ```php
@@ -155,24 +174,20 @@ create table subscriptions (
   addon_ids json, coupon varchar(20), payment varchar(12),
   total decimal(10,2), per_month decimal(10,2),
   starts_at date, ends_at date,
-  status enum('active','frozen','cancelled','expired') default 'active',
+  payment_ref varchar(64), paid_at timestamp null, paid_by varchar(36),
+  status enum('pending','active','frozen','cancelled','expired') default 'pending',
   auto_renew tinyint(1) default 1, frozen_days_used smallint default 0,
   created_at timestamp default current_timestamp
 );
-create table payments (
-  id bigint auto_increment primary key, reference varchar(48) unique,
-  order_id varchar(24), amount decimal(10,2), method varchar(12),
-  status enum('requires_action','succeeded','failed') default 'requires_action',
-  gateway_ref varchar(64), error_code varchar(32), created_at timestamp default current_timestamp
-);
+-- ⚠️ مفيش جدول payments ولا أي عمود لبيانات الكروت — الدفع بره الموقع (محفظة/كاش)
 ```
 
 ## 4) ملاحظات مهمة
 - **CORS**: لو مستخدم `BACKEND_URL` (بروكسي) مفيش CORS خالص. لو مستخدم `NEXT_PUBLIC_API_BASE` ضيف `config/cors.php` بـ `paths => ['api/*']` و `allowed_origins => [دومين الفرونت]`.
-- **الأمان**: متسجلش أرقام بطاقات أبدًا. ابعت الكارت للبوابة (Paymob/Fawry/Stripe tokenization) وخزّن `gateway_ref` بس. الواجهة أصلاً بتبعت `card` للـ endpoint بتاعكم ومنه للبوابة — ماتخليش اللوجز يسجل البودي.
-- **idempotency**: الواجهة بتبعت `orderId`/`id` ثابت — استخدمه كمفتاح فريد عشان لو الطلب اتعمل مرتين (ضعف شبكة) ميتعملش مزدوج.
-- **idempotent OTP**: لو `reference` اتأكدت قبل كده، ارجع `succeeded` تاني بدل 404.
-- **الأسعار**: الحساب كله في الفرونت (`app/lib/subscription.ts`). في الإنتاج لازم **إعادة حساب الـ total سيرفرًا** وتطابقه، ومتقبلش رقم العميل.
+- **الأمان**: مفيش أي بيانات بطاقات في المنتج ده — لا في الواجهة ولا في الـ API ولا في الداتابيز. أقصى حاجة بتتخزن هي رقم المحفظة اللي العضو كتبه للمطابقة.
+- **الأسعار**: `POST /api/subscribe` **لازم** يعيد حساب الإجمالي عندك (نفس منطق `app/lib/subscription.ts`) ويتجاهل أي مبلغ جاي من العميل، ويرفض أي `planId`/`cycle`/addon/coupon مش موجود بـ 422.
+- **رقم الطلب**: بيتولّد على السيرفر. لو محتاج idempotency استخدم مفتاح `Idempotency-Key` في الهيدر بدل ما تسيب العميل يختار الـ id.
+- **التفعيل**: الاشتراك بيبدأ `pending` وبيتحوّل `active` من لوحة الإدارة بس بعد تأكيد استلام الفلوس.
 
 ## 5) اتأكد إن الباك إند بتاعك متوافق في 10 ثواني
 ```bash
@@ -180,15 +195,18 @@ curl -s -X POST $BACKEND/api/bookings -H 'Content-Type: application/json' \
   -d '{"name":"تجربة","phone":"01012345678"}'          # → 201 ok:true
 curl -s -X POST $BACKEND/api/bookings -H 'Content-Type: application/json' \
   -d '{"name":"x","phone":"12"}'                        # → 422 fields.phone
-curl -s -X POST $BACKEND/api/pay -H 'Content-Type: application/json' \
-  -d '{"method":"card","amount":100,"card":{"number":"4242 4242 4242 4242"}}'   # → requires_action
+curl -s -X POST $BACKEND/api/quote -H 'Content-Type: application/json' \
+  -d '{"planId":"pro","cycle":"yearly","addonIds":[],"coupon":"FIT10"}'  # → quote.total
+curl -s -X POST $BACKEND/api/subscribe -H 'Content-Type: application/json' \
+  -d '{"planId":"pro","cycle":"yearly","addonIds":[],"payment":"cash","total":1,
+       "member":{"name":"تجربة التلاعب","phone":"01012345678"}}'          # → total الحقيقي مش 1
 ```
 
 ## 6) المرجع الرسمي للسلوك: اختبارات الفرونت نفسها
 
 في `tests/api-contract.test.ts` فيه assertions بينادوا الـ route handlers المحلية ويأكدوا
-كل حالة في العقد (201 تأكيد الحجز، 422 بـ `fields`، 402 رفض بنك، 401 OTP غلط، 404 مرجع
-مش موجود، 422 من غير `amount`). يعني:
+كل حالة في العقد (201 تسجيل الطلب، 422 بـ `fields`، تجاهل المبالغ الجاية من العميل، رفض
+الكوبون الغلط، ورفض أي طريقة دفع مش `wallet`/`cash`). يعني:
 
 - لو حبيت تعرف «الصح إيه بالظبط» — اقرأ الملف ده، ده المواصفة مش الكلام.
 - لما باك إندك يخلص، اسرق الـ `it(...)` دي وحولها لـ Pest/PHPUnit (نفس الـ payloads) —

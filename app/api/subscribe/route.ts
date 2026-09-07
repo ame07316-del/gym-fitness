@@ -1,16 +1,20 @@
 import { validateBooking } from "../bookings/route";
 import { authorize, scopeCoachId } from "@/app/lib/auth/guard";
 import { can } from "@/app/lib/auth/roles";
+import { PAY_METHODS } from "@/app/lib/data";
 import { audit } from "@/app/lib/db/audit";
 import { hitRateLimit } from "@/app/lib/db/rate-limit";
 import { createSubscription, expireOverdue, listSubscriptions, subscriptionStats } from "@/app/lib/db/subscriptions";
-import { cleanText, clientIp, errorJson, json, readJson, toInt } from "@/app/lib/http";
+import { cleanText, clientIp, errorJson, json, readJson } from "@/app/lib/http";
+import { addMonths, parseDraft, quoteOf } from "@/app/lib/subscription";
+import { randomBytes } from "node:crypto";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export type SubscribeRecord = {
   orderId: string;
+  planId: string | null;
   planName: string;
   cycle: string;
   months: number;
@@ -20,18 +24,25 @@ export type SubscribeRecord = {
   perMonth: number;
   member: { name: string; phone: string; goal: string };
   payment: string;
+  paymentRef: string | null;
   status: string;
   createdAt: number;
   endsAt: number;
 };
 
-const arr = (v: unknown) =>
-  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").map((s) => s.slice(0, 24)).slice(0, 12) : [];
+/** رقم طلب بيتولّد على السيرفر — العميل مش بيختار رقمه عشان ما يدهسش على طلب تاني */
+const newOrderId = () => `FZ-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString("hex").toUpperCase()}`;
 
-const ORDER_ID_RE = /^[A-Z0-9-]{4,24}$/;
-const MAX_TOTAL = 1_000_000; // سقف منطقي — أي رقم أكبر ده تلاعب أو غلط
+const isPayMethod = (v: string): v is (typeof PAY_METHODS)[number]["id"] => PAY_METHODS.some((m) => m.id === v);
 
-/** تفعيل اشتراك بعد نجاح الدفع (عام — من التشيك أوت) */
+/**
+ * تسجيل اشتراك جديد من التشيك أوت (عام).
+ *
+ * الأمان: كل الفلوس (الإجمالي/الشهري/المدة/تاريخ الانتهاء) **بتتحسب هنا** من
+ * الباقة والمدة والإضافات والكوبون. أي `total` أو `endsAt` جاي في الطلب بيتتجاهل.
+ * الاشتراك بيتسجّل `pending` لحد ما الإدارة تأكد استلام الفلوس من لوحة التحكم —
+ * مفيش دفع بالكروت في الموقع أصلًا.
+ */
 export async function POST(request: Request) {
   const ip = clientIp(request);
   const limit = hitRateLimit(`subscribe:${ip}`, { limit: 20, windowMs: 10 * 60_000, blockMs: 10 * 60_000 });
@@ -42,39 +53,50 @@ export async function POST(request: Request) {
 
   const member = (body.member ?? {}) as Record<string, unknown>;
   const { name, phone, goal, errors } = validateBooking(member);
-  if (Object.keys(errors).length) return json({ error: "بيانات العضو غير مكتملة", fields: errors }, { status: 422 });
 
-  const total = toInt(body.total);
-  if (total <= 0 || total > MAX_TOTAL) return errorJson("قيمة الاشتراك غير صحيحة", 422);
+  const { draft, errors: draftErrors } = parseDraft(body);
+  Object.assign(errors, draftErrors);
 
-  const rawOrderId = cleanText(body.orderId, 24).toUpperCase();
-  const orderId = ORDER_ID_RE.test(rawOrderId) ? rawOrderId : `FZ-${Date.now().toString(36).toUpperCase()}`;
-  const months = Math.max(1, Math.min(24, toInt(body.months, 1) || 1));
+  const payment = cleanText(body.payment, 20);
+  if (!isPayMethod(payment)) errors.payment = "اختار طريقة دفع صحيحة";
 
+  if (Object.keys(errors).length) return json({ error: "بيانات الاشتراك غير مكتملة", fields: errors }, { status: 422 });
+
+  // كوبون غلط = رفض صريح، مش خصم بصمت ولا سعر مختلف عن اللي العضو شافه
+  const quote = quoteOf(draft);
+  if (quote.couponError) return json({ error: quote.couponError, fields: { coupon: quote.couponError } }, { status: 422 });
+
+  const createdAt = Date.now();
   const sub = createSubscription({
-    orderId,
+    orderId: newOrderId(),
     memberName: name,
     memberPhone: phone,
     memberGoal: goal,
-    planName: cleanText(body.planName, 40) || "برو",
-    cycle: cleanText(body.cycle, 20) || "monthly",
-    months,
-    addonIds: arr(body.addonIds),
-    coupon: cleanText(body.coupon, 20).toUpperCase() || null,
-    total,
-    perMonth: toInt(body.perMonth) || total,
-    payment: cleanText(body.payment, 20) || "card",
+    planId: draft.planId,
+    planName: quote.planName,
+    cycle: draft.cycle,
+    months: quote.months,
+    addonIds: draft.addonIds,
+    coupon: quote.coupon?.code ?? null,
+    total: quote.total,
+    perMonth: quote.perMonth,
+    payment,
     paymentRef: cleanText(body.paymentRef, 64) || null,
-    // مفيش أي رقم كارت بيتخزن — الشعار وآخر 4 أرقام بس
-    cardBrand: cleanText(body.cardBrand, 20) || null,
-    cardLast4: cleanText(body.cardLast4, 4).replace(/\D/g, "") || null,
-    endsAt: toInt(body.endsAt) || Date.now() + months * 30 * 86_400_000,
+    status: "pending",
+    endsAt: addMonths(createdAt, quote.months),
   });
 
-  audit({ action: "subscription.created", entity: "subscription", entityId: sub.orderId, meta: { plan: sub.planName, months: sub.months }, ip });
+  audit({
+    action: "subscription.created",
+    entity: "subscription",
+    entityId: sub.orderId,
+    meta: { plan: sub.planName, months: sub.months, total: sub.total, payment: sub.payment },
+    ip,
+  });
 
   const record: SubscribeRecord = {
     orderId: sub.orderId,
+    planId: sub.planId,
     planName: sub.planName,
     cycle: sub.cycle,
     months: sub.months,
@@ -84,13 +106,22 @@ export async function POST(request: Request) {
     perMonth: sub.perMonth,
     member: { name: sub.member.name, phone: sub.member.phone, goal: sub.member.goal ?? "" },
     payment: sub.payment,
+    paymentRef: sub.paymentRef,
     status: sub.status,
     createdAt: sub.createdAt,
     endsAt: sub.endsAt,
   };
 
   return json(
-    { ok: true, order: record, invoice: `INV-${sub.orderId}`, message: `تم تفعيل عضوية ${sub.member.name} — ${sub.planName}` },
+    {
+      ok: true,
+      order: record,
+      invoice: `INV-${sub.orderId}`,
+      message:
+        payment === "cash"
+          ? `تم حجز عضوية ${sub.member.name} — ${sub.planName}. ادفع في الفرع خلال 48 ساعة عشان تتفعّل.`
+          : `تم تسجيل طلب عضوية ${sub.member.name} — ${sub.planName}. الاشتراك هيتفعّل بعد تأكيد التحويل.`,
+    },
     { status: 201 },
   );
 }

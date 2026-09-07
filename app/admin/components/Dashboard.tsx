@@ -25,7 +25,7 @@ import AccountPanel from "./AccountPanel";
 
 export type Stats = {
   scope: "own" | "all";
-  subscriptions: { total: number; active: number; frozen: number; cancelled: number; expired: number; revenue: number | null; byPlan: { plan: string; count: number }[] };
+  subscriptions: { total: number; pending: number; active: number; frozen: number; cancelled: number; expired: number; revenue: number | null; byPlan: { plan: string; count: number }[] };
   bookings: { total: number; pending: number; confirmed: number; done: number };
   staff: { total: number; active: number; coaches: number } | null;
 };
@@ -178,9 +178,9 @@ function Overview({ stats, user }: { stats: Stats | null; user: PublicUser }) {
   const cards = [
     { label: stats.scope === "own" ? "أعضائي" : "كل الاشتراكات", value: s.total, tone: "text-white" },
     { label: "نشط", value: s.active, tone: "text-mint" },
+    { label: "بانتظار الدفع", value: s.pending, tone: "text-gold" },
     { label: "مجمّد", value: s.frozen, tone: "text-gold" },
     { label: "ملغي", value: s.cancelled, tone: "text-brand-soft" },
-    { label: "منتهي", value: s.expired, tone: "text-white/60" },
     { label: "حجوزات مفتوحة", value: stats.bookings.pending, tone: "text-white" },
   ];
 

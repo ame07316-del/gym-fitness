@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Ban, PauseCircle, PlayCircle, Search, Trash2, UserCog } from "lucide-react";
+import { Ban, BadgeCheck, PauseCircle, PlayCircle, Search, Trash2, UserCog } from "lucide-react";
 import { adminFetch } from "@/app/lib/admin-client";
 import type { Permission } from "@/app/lib/auth/roles";
 import type { PublicUser } from "@/app/lib/db/users";
@@ -17,7 +17,9 @@ type Sub = {
   perMonth: number | null;
   coachId: string | null;
   coachName: string | null;
-  status: "active" | "frozen" | "cancelled" | "expired";
+  status: "pending" | "active" | "frozen" | "cancelled" | "expired";
+  payment: string;
+  paymentRef: string | null;
   createdAt: number;
   endsAt: number;
   cancelReason: string | null;
@@ -26,14 +28,18 @@ type Sub = {
 type Payload = { items: Sub[]; total: number; scope: "own" | "all"; coaches: { id: string; name: string }[] };
 
 const STATUS_META: Record<Sub["status"], { label: string; cls: string }> = {
+  pending: { label: "بانتظار الدفع", cls: "border-gold/40 bg-gold/10 text-gold" },
   active: { label: "نشط", cls: "border-mint/40 bg-mint/10 text-mint" },
   frozen: { label: "مجمّد", cls: "border-gold/40 bg-gold/10 text-gold" },
   cancelled: { label: "ملغي", cls: "border-brand/40 bg-brand/10 text-brand-soft" },
   expired: { label: "منتهي", cls: "border-line bg-white/5 text-white/60" },
 };
 
+const PAY_LABEL: Record<string, string> = { wallet: "محفظة / إنستا باي", cash: "كاش في الفرع" };
+
 const FILTERS = [
   { id: "all", label: "الكل" },
+  { id: "pending", label: "بانتظار الدفع" },
   { id: "active", label: "نشط" },
   { id: "frozen", label: "مجمّد" },
   { id: "cancelled", label: "ملغي" },
@@ -80,12 +86,16 @@ export default function SubscriptionsPanel({
     };
   }, [status, q, reload]);
 
-  async function act(sub: Sub, action: "cancel" | "freeze" | "resume") {
-    const labels = { cancel: "إلغاء", freeze: "تجميد", resume: "استئناف" } as const;
+  async function act(sub: Sub, action: "cancel" | "freeze" | "resume" | "confirm_payment") {
+    const labels = { cancel: "إلغاء", freeze: "تجميد", resume: "استئناف", confirm_payment: "تأكيد الدفع" } as const;
     let reason: string | null = null;
     if (action === "cancel") {
       reason = window.prompt(`سبب إلغاء اشتراك ${sub.member.name}؟ (اختياري)`, "");
       if (reason === null) return; // المستخدم لغى
+    }
+    if (action === "confirm_payment") {
+      const amount = sub.total === null ? "" : ` بمبلغ ${sub.total.toLocaleString("ar-EG")} ج.م`;
+      if (!window.confirm(`تأكيد استلام فلوس اشتراك ${sub.member.name}${amount}؟ العضوية هتتفعّل فورًا.`)) return;
     }
     setBusyId(sub.orderId);
     const res = await adminFetch<{ message: string }>(`/api/admin/subscriptions/${encodeURIComponent(sub.orderId)}`, {
@@ -202,8 +212,9 @@ export default function SubscriptionsPanel({
                   <td className="p-3">
                     <p>{s.planName}</p>
                     <p className="text-xs text-white/50">
-                      <span className="num">{s.months}</span> شهر
+                      <span className="num">{s.months}</span> شهر · {PAY_LABEL[s.payment] ?? s.payment}
                     </p>
+                    {s.paymentRef && <p className="num text-[11px] text-white/35">مرجع: {s.paymentRef}</p>}
                   </td>
                   <td className="p-3">
                     <span className={cx("inline-block rounded-lg border px-2 py-1 text-xs font-bold", STATUS_META[s.status].cls)}>
@@ -237,6 +248,15 @@ export default function SubscriptionsPanel({
                   {has("revenue:read") && <td className="num p-3 font-bold">{s.total === null ? "—" : egp(s.total)}</td>}
                   <td className="p-3">
                     <div className="flex flex-wrap gap-1.5">
+                      {has("subscriptions:update") && s.status === "pending" && (
+                        <ActionBtn
+                          onClick={() => void act(s, "confirm_payment")}
+                          busy={busyId === s.orderId}
+                          icon={BadgeCheck}
+                          label="تأكيد الدفع"
+                          tone="mint"
+                        />
+                      )}
                       {has("subscriptions:update") && s.status === "active" && (
                         <ActionBtn onClick={() => void act(s, "freeze")} busy={busyId === s.orderId} icon={PauseCircle} label="تجميد" tone="gold" />
                       )}

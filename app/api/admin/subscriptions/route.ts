@@ -7,7 +7,7 @@ import { json } from "@/app/lib/http";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const STATUSES: (SubStatus | "all")[] = ["all", "active", "frozen", "cancelled", "expired"];
+const STATUSES: (SubStatus | "all")[] = ["all", "pending", "active", "frozen", "cancelled", "expired"];
 
 /**
  * قائمة الاشتراكات.

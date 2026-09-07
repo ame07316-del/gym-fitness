@@ -130,6 +130,58 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_bookings_coach  ON bookings (coach_id);
   CREATE INDEX idx_bookings_at     ON bookings (created_at DESC);
   `,
+
+  /* 3 — إلغاء الدفع بالكروت نهائيًا + حالة «بانتظار تأكيد الدفع» */
+  `
+  CREATE TABLE subscriptions_new (
+    order_id       TEXT PRIMARY KEY,
+    member_name    TEXT NOT NULL,
+    member_phone   TEXT NOT NULL,
+    member_goal    TEXT,
+    plan_id        TEXT,
+    plan_name      TEXT NOT NULL,
+    cycle          TEXT NOT NULL,
+    months         INTEGER NOT NULL DEFAULT 1,
+    addon_ids      TEXT NOT NULL DEFAULT '[]',
+    coupon         TEXT,
+    total          INTEGER NOT NULL DEFAULT 0,
+    per_month      INTEGER NOT NULL DEFAULT 0,
+    payment_method TEXT NOT NULL DEFAULT 'cash' CHECK (payment_method IN ('wallet','cash')),
+    payment_ref    TEXT,                                   -- مرجع التحويل اللي كتبه العضو
+    paid_at        INTEGER,                                -- إمتى الإدارة أكدت استلام الفلوس
+    paid_by        TEXT,
+    coach_id       TEXT REFERENCES users(id) ON DELETE SET NULL,
+    status         TEXT NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending','active','frozen','cancelled','expired')),
+    created_at     INTEGER NOT NULL,
+    updated_at     INTEGER NOT NULL,
+    ends_at        INTEGER NOT NULL,
+    cancelled_at   INTEGER,
+    cancelled_by   TEXT,
+    cancel_reason  TEXT
+  );
+
+  INSERT INTO subscriptions_new
+    (order_id, member_name, member_phone, member_goal, plan_id, plan_name, cycle, months, addon_ids, coupon,
+     total, per_month, payment_method, payment_ref, paid_at, paid_by, coach_id, status,
+     created_at, updated_at, ends_at, cancelled_at, cancelled_by, cancel_reason)
+  SELECT
+     order_id, member_name, member_phone, member_goal, NULL, plan_name, cycle, months, addon_ids, coupon,
+     total, per_month,
+     CASE WHEN payment_method = 'wallet' THEN 'wallet' ELSE 'cash' END,
+     payment_ref,
+     CASE WHEN status IN ('active','frozen','expired') THEN created_at ELSE NULL END,
+     NULL, coach_id, status,
+     created_at, updated_at, ends_at, cancelled_at, cancelled_by, cancel_reason
+  FROM subscriptions;
+
+  DROP TABLE subscriptions;
+  ALTER TABLE subscriptions_new RENAME TO subscriptions;
+
+  CREATE INDEX idx_subs_status ON subscriptions (status);
+  CREATE INDEX idx_subs_coach  ON subscriptions (coach_id);
+  CREATE INDEX idx_subs_at     ON subscriptions (created_at DESC);
+  `,
 ];
 
 function migrate(db: DB) {

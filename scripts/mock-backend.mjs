@@ -4,40 +4,81 @@
  * بعدين:  BACKEND_URL=http://127.0.0.1:8000      في .env.local → كل /api/* هييجي هنا.
  *
  * الردود بنفس شكل docs/BACKEND-CONTRACT.md بالظبط، فممكن تقارن بيها ردودك.
+ *
+ * ملاحظة مهمة: مفيش دفع بالكروت خالص — والأسعار بتتحسب هنا على السيرفر،
+ * أي مبلغ جاي من المتصفح بيتتجاهل.
  */
 import { createServer } from "node:http";
 
 const PORT = Number(process.env.PORT ?? 8000);
 const bookings = [];
 const subscriptions = [];
-const intents = new Map();
 
 const digits = (v) => String(v ?? "").replace(/\D/g, "");
 const phoneOk = (v) => /^(?:\+?2|002)?01[0-9]{9}$/.test(digits(v));
 const nameOk = (v) => typeof v === "string" && v.trim().length >= 3;
 
-function luhn(n) {
-  if (n.length < 13 || n.length > 19) return false;
-  let sum = 0;
-  let dbl = false;
-  for (let i = n.length - 1; i >= 0; i--) {
-    let d = Number(n[i]);
-    if (dbl) {
-      d *= 2;
-      if (d > 9) d -= 9;
-    }
-    sum += d;
-    dbl = !dbl;
-  }
-  return sum % 10 === 0;
-}
-
-const DECLINE = {
-  "4000000000000002": "card_declined",
-  "4000000000009995": "insufficient_funds",
-  "4000000000009987": "expired_card",
-  "4000000000006051": "incorrect_cvc",
+/* ---------- محرك التسعير (نسخة مبسطة من app/lib/subscription.ts) ---------- */
+const PLANS = { basic: { name: "أساسي", monthly: 500 }, pro: { name: "برو", monthly: 800 }, vip: { name: "VIP", monthly: 1450 } };
+const CYCLES = {
+  monthly: { label: "شهري", months: 1, off: 0 },
+  quarterly: { label: "٣ شهور", months: 3, off: 0.08 },
+  semiannual: { label: "٦ شهور", months: 6, off: 0.14 },
+  yearly: { label: "سنوي", months: 12, off: 0.2 },
 };
+const ADDONS = { pt: 1200, nutrition: 450, inbody: 250, crossfit: 600, sauna: 300, locker: 150 };
+const COUPONS = { FIT10: { off: 0.1, min: 0 }, NEW25: { off: 0.25, min: 1500, max: 1500 }, YEAR20: { off: 0.2, min: 4000 }, REFERRAL: { off: 0.15, min: 0 } };
+const VAT = 0.14;
+const r2 = (n) => Math.round(n * 100) / 100;
+
+function priceOf(body) {
+  const errors = {};
+  const plan = PLANS[body.planId];
+  if (!plan) errors.planId = "الباقة دي مش موجودة";
+  const cycle = CYCLES[body.cycle];
+  if (!cycle) errors.cycle = "مدة الاشتراك دي مش موجودة";
+  const ids = Array.isArray(body.addonIds) ? [...new Set(body.addonIds)] : [];
+  if (ids.some((id) => !(id in ADDONS))) errors.addonIds = "فيه إضافة مش موجودة";
+  if (Object.keys(errors).length) return { errors };
+
+  const months = cycle.months;
+  const planTotal = plan.monthly * months;
+  const addonsMonthly = ids.reduce((t, id) => t + ADDONS[id], 0);
+  const subtotal = planTotal + addonsMonthly * months;
+  const cycleDiscount = r2(planTotal * cycle.off);
+  const afterCycle = r2(subtotal - cycleDiscount);
+
+  const code = String(body.coupon ?? "").trim().toUpperCase();
+  const coupon = COUPONS[code];
+  let couponDiscount = 0;
+  let couponError = null;
+  if (code) {
+    if (!coupon) couponError = "الكود غير صحيح — جرّب FIT10";
+    else if (subtotal < coupon.min) couponError = `الكود يبدأ من ${coupon.min} ج.م`;
+    else couponDiscount = Math.min(r2(afterCycle * coupon.off), coupon.max ?? Infinity);
+  }
+
+  const net = r2(Math.max(0, afterCycle - couponDiscount));
+  const vat = r2(net * VAT);
+  const total = r2(net + vat);
+  return {
+    errors: {},
+    quote: {
+      planName: plan.name,
+      cycleLabel: cycle.label,
+      months,
+      subtotal,
+      cycleDiscount,
+      couponDiscount,
+      net,
+      vat,
+      total,
+      perMonth: r2(total / months),
+      coupon: coupon ? code : null,
+      couponError,
+    },
+  };
+}
 
 const json = (res, status, body) => {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*" });
@@ -94,73 +135,53 @@ const server = createServer(async (req, res) => {
     const member = s.member ?? {};
     if (!nameOk(member.name)) fields["member.name"] = "اسم العضو مطلوب";
     if (!phoneOk(member.phone)) fields["member.phone"] = "رقم موبايل غير صحيح";
-    if (!(Number(s.total) > 0)) fields.total = "قيمة الاشتراك غير صحيحة";
-    if (Object.keys(fields).length) return json(res, 422, { error: "بيانات العضو غير مكتملة", fields });
+    if (!["wallet", "cash"].includes(s.payment)) fields.payment = "اختار طريقة دفع صحيحة";
 
-    // ⚠️ في الإنتاج: أعِد حساب السعر من الداتابيز وقارنه، متقبلش رقم العميل
-    subscriptions.unshift({ ...s, createdAt: Date.now(), source: "mock-backend" });
+    // السعر بيتحسب هنا — أي total جاي من العميل بيتتجاهل تمامًا
+    const { errors, quote } = priceOf(s);
+    Object.assign(fields, errors);
+    if (Object.keys(fields).length) return json(res, 422, { error: "بيانات الاشتراك غير مكتملة", fields });
+    if (quote.couponError) return json(res, 422, { error: quote.couponError, fields: { coupon: quote.couponError } });
+
+    const orderId = `FZ-${Date.now().toString(36).toUpperCase()}`;
+    const createdAt = Date.now();
+    const record = {
+      orderId,
+      planId: s.planId,
+      planName: quote.planName,
+      cycle: s.cycle,
+      months: quote.months,
+      addonIds: Array.isArray(s.addonIds) ? s.addonIds : [],
+      coupon: quote.coupon,
+      total: quote.total,
+      perMonth: quote.perMonth,
+      member: { name: String(member.name).trim(), phone: digits(member.phone), goal: member.goal ?? "" },
+      payment: s.payment,
+      paymentRef: s.paymentRef ? String(s.paymentRef).slice(0, 64) : null,
+      status: "pending",
+      createdAt,
+      endsAt: createdAt + quote.months * 30 * 86400000,
+    };
+    subscriptions.unshift({ ...record, source: "mock-backend" });
     return json(res, 201, {
       ok: true,
-      order: { orderId: s.orderId, status: "active", totalPaid: Number(s.total) },
-      invoice: `INV-${s.orderId}`,
-      message: `تم تفعيل عضوية ${member.name} — ${s.planName}`,
+      order: record,
+      invoice: `INV-${orderId}`,
+      message: `تم تسجيل طلب عضوية ${record.member.name} — ${record.planName}`,
     });
   }
+
+  /* ---------- التسعيرة الرسمية ---------- */
+  if (path === "/api/quote" && method === "POST") {
+    const body = await readBody(req);
+    const { errors, quote } = priceOf(body);
+    if (Object.keys(errors).length) return json(res, 422, { error: "بيانات الاشتراك غير صحيحة", fields: errors });
+    return json(res, 200, { ok: true, draft: { planId: body.planId, cycle: body.cycle, addonIds: body.addonIds ?? [], coupon: quote.coupon }, quote });
+  }
+
   if (path === "/api/subscribe" && method === "GET") {
     const revenue = subscriptions.reduce((t, s) => t + Number(s.total || 0), 0);
     return json(res, 200, { total: subscriptions.length, revenue, items: subscriptions.slice(0, 25) });
-  }
-
-  /* ---------- payment ---------- */
-  if (path === "/api/pay" && method === "POST") {
-    const p = await readBody(req);
-    const amount = Number(p.amount);
-    if (!Number.isFinite(amount) || amount <= 0) return json(res, 422, { error: "قيمة غير صالحة" });
-
-    const reference = `pi_mock_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    const n = digits(p.card?.number);
-    let status = "succeeded";
-    let message = "تم اعتماد العملية";
-    let code = "succeeded";
-
-    if (p.method !== "card") {
-      message = p.method === "cash" ? "الحجز محجوز 48 ساعة للدفع في الفرع" : "بانتظار تأكيد تحويل المحفظة";
-    } else if (DECLINE[n]) {
-      status = "failed";
-      code = DECLINE[n];
-      message = `البنك رفض العملية (${code})`;
-    } else if (!luhn(n)) {
-      status = "failed";
-      code = "invalid_number";
-      message = "رقم البطاقة غير صحيح — فشل فحص Luhn";
-    } else {
-      status = "requires_action";
-      code = "requires_action";
-      message = "البنك طلب تحقق إضافي (3-D Secure)";
-    }
-
-    intents.set(reference, { amount, status, createdAt: Date.now() });
-    return json(res, status === "failed" ? 402 : 200, {
-      ok: status !== "failed",
-      status,
-      code,
-      provider: "mock-backend",
-      reference,
-      amount,
-      last4: n.slice(-4),
-      message,
-    });
-  }
-  if (path === "/api/pay/confirm" && method === "POST") {
-    const { reference, code } = await readBody(req);
-    const it = intents.get(reference);
-    if (!it) return json(res, 404, { ok: false, status: "failed", reference, message: "العملية غير موجودة" });
-    if (it.status === "succeeded") return json(res, 200, { ok: true, status: "succeeded", reference, message: "مؤكدة سابقًا" });
-    const c = String(code ?? "");
-    if (!/^\d{6}$/.test(c) || c === "000000")
-      return json(res, 401, { ok: false, status: "requires_action", reference, message: "رمز التحقق غير صحيح" });
-    intents.set(reference, { ...it, status: "succeeded" });
-    return json(res, 200, { ok: true, status: "succeeded", reference, amount: it.amount, message: "تم التحقق من البنك ✅" });
   }
 
   return json(res, 404, { error: `مسار غير معروف: ${method} ${path}` });
