@@ -7,6 +7,13 @@ export const NO_STORE_HEADERS = { "Cache-Control": "no-store" } as const;
  * server-only and send it as `Authorization: Bearer ...` from an admin tool.
  */
 export function isAdminRequest(request: Request) {
+  // The preview server can expose dummy local data without making the real
+  // admin token part of the browser bundle. This path is development-only and
+  // requires an explicit flag; production always requires the bearer token.
+  if (process.env.NODE_ENV === "development" && process.env.ADMIN_DEMO_MODE === "true" && request.headers.get("x-fitzone-demo") === "1") {
+    return true;
+  }
+
   const expected = process.env.ADMIN_API_TOKEN?.trim();
   if (!expected) return false;
 

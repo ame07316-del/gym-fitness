@@ -23,7 +23,8 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 
 type Booking = {
   id: string;
@@ -68,6 +69,7 @@ type SubscriptionsResponse = {
 
 type ApiError = Error & { status?: number };
 
+const DEMO_TOKEN = "__fitzone_preview__";
 const CURRENCY = new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 0 });
 const DATE = new Intl.DateTimeFormat("ar-EG", { dateStyle: "medium", timeStyle: "short" });
 const TODAY = new Intl.DateTimeFormat("ar-EG", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
@@ -82,8 +84,11 @@ const formatDate = (value: number) => {
 };
 
 async function fetchAdminData<T>(path: string, token: string) {
+  const headers: Record<string, string> = { Accept: "application/json", Authorization: `Bearer ${token}` };
+  if (token === DEMO_TOKEN) headers["x-fitzone-demo"] = "1";
+
   const response = await fetch(path, {
-    headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+    headers,
     cache: "no-store",
   });
 
@@ -188,7 +193,7 @@ export default function AdminPage() {
   const [search, setSearch] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const loadDashboard = async (candidate: string) => {
+  const loadDashboard = useCallback(async (candidate: string) => {
     setLoading(true);
     setError("");
 
@@ -214,7 +219,13 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    const timer = window.setTimeout(() => void loadDashboard(DEMO_TOKEN), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadDashboard]);
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
