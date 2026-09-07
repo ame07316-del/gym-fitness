@@ -183,7 +183,7 @@ function TableHeader({ children, action }: { children: React.ReactNode; action?:
 }
 
 export default function AdminPage() {
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState(process.env.NODE_ENV === "development" ? DEMO_TOKEN : "");
   const [tokenInput, setTokenInput] = useState("");
   const [bookings, setBookings] = useState<BookingsResponse | null>(null);
   const [subscriptions, setSubscriptions] = useState<SubscriptionsResponse | null>(null);
