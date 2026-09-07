@@ -12,7 +12,7 @@
    - `ADMIN_API_TOKEN` = توكن عشوائي قوي لحماية إحصائيات الإدارة.
    - لتخزين دائم: شغّل [`docs/SUPABASE.md`](SUPABASE.md) وضع `SUPABASE_URL` و`SUPABASE_SERVICE_ROLE_KEY` في Vercel.
    - **متحطش** `BACKEND_URL` هنا — ده للربط المحلي بباك إند Laravel. لو بعدين عايز تطلع الـ API لباك إند شغال، حطه وقوّي `BACKEND_ONLY`.
-5. Deploy. هيطلع معاك لينك زي `fitzone-pro-xxx.vercel.app`.
+5. Deploy. هيطلع معاك لينك زي `fitzone-pro-xxx.vercel.app`. لوحة الإدارة هتكون على `/admin`، واكتب نفس `ADMIN_API_TOKEN` في شاشة الدخول.
 
 ## 1.5) ⚠️ لو الرابط فتح صفحة «Log in to Vercel»
 
