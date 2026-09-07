@@ -34,6 +34,9 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: "1"
 
+      - name: npm audit
+        run: npm audit --audit-level=moderate
+
       - name: tsc --noEmit
         run: npm run typecheck
 

@@ -121,30 +121,54 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
 
   const confirmSubscription: Ctx["confirmSubscription"] = useCallback(
     async (base) => {
+      const startedAt = Date.now();
       const rec: Membership = {
         ...base,
         orderId: uid("FZ"),
-        startedAt: Date.now(),
-        endsAt: addMonths(Date.now(), base.months),
+        startedAt,
+        endsAt: addMonths(startedAt, base.months),
         status: "active",
         autoRenew: base.cycle !== "monthly",
         frozenAt: null,
         frozenDaysUsed: 0,
       };
-      const res = await apiFetch<{ order?: { orderId?: string }; invoice?: string }>(ENDPOINTS.subscribe, { method: "POST", body: rec });
-      if (!res.ok) {
-        toast({
-          kind: "warn",
-          title: "الاشتراك اتسجّل على جهازك",
-          body: res.error ? `${res.error} — بياناتك محفوظة ومعاهالك مرجع الطلب ${rec.orderId}.` : "الباك إند مش متاح دلوقتي.",
-        });
+      type ServerOrder = Partial<Membership> & { createdAt?: number };
+      const res = await apiFetch<{ order?: ServerOrder; invoice?: string }>(ENDPOINTS.subscribe, { method: "POST", body: rec });
+
+      // A real validation error must not activate a membership locally. Only a
+      // network outage gets the demo's offline fallback behavior.
+      if (!res.ok && res.status !== 0) {
+        toast({ kind: "error", title: "الاشتراك ما اتفعّلش", body: res.error ?? "راجع البيانات وحاول تاني." });
+        return null;
+      }
+
+      const serverOrder = res.data?.order;
+      const confirmed: Membership = {
+        ...rec,
+        orderId: serverOrder?.orderId ?? rec.orderId,
+        planId: serverOrder?.planId ?? rec.planId,
+        planName: serverOrder?.planName ?? rec.planName,
+        cycle: serverOrder?.cycle ?? rec.cycle,
+        months: serverOrder?.months ?? rec.months,
+        addonIds: serverOrder?.addonIds ?? rec.addonIds,
+        coupon: serverOrder?.coupon ?? rec.coupon,
+        total: serverOrder?.total ?? rec.total,
+        perMonth: serverOrder?.perMonth ?? rec.perMonth,
+        member: serverOrder?.member ?? rec.member,
+        payment: serverOrder?.payment ?? rec.payment,
+        startedAt: serverOrder?.createdAt ?? serverOrder?.startedAt ?? rec.startedAt,
+        endsAt: serverOrder?.endsAt ?? rec.endsAt,
+      };
+
+      if (res.status === 0) {
+        toast({ kind: "warn", title: "الاشتراك محفوظ على جهازك", body: `الباك إند مش متاح دلوقتي — رقم الطلب ${confirmed.orderId}.` });
       } else if (res.data?.invoice) {
         toast({ kind: "info", title: `فاتورة ${res.data.invoice}`, body: "هنبعتهالك على الواتساب بعد تأكيد الدفع." });
       }
-      setMembership(rec);
-      setHistory((h) => [rec, ...h].slice(0, 12));
-      toast({ kind: "success", title: `تم تفعيل عضوية ${rec.planName} 🎉`, body: `رقم الطلب ${rec.orderId}` });
-      return rec;
+      setMembership(confirmed);
+      setHistory((h) => [confirmed, ...h].slice(0, 12));
+      toast({ kind: "success", title: `تم تفعيل عضوية ${confirmed.planName} 🎉`, body: `رقم الطلب ${confirmed.orderId}` });
+      return confirmed;
     },
     [setHistory, setMembership, toast],
   );

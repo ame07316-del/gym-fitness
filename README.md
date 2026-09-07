@@ -20,6 +20,7 @@
 | 🎬 **Walkthrough (90 ثانية)** | `_لينك Loom/YouTube_` |
 | 📄 **عقد الباك إند** | [`docs/BACKEND-CONTRACT.md`](docs/BACKEND-CONTRACT.md) |
 | ⚖️ **الرخصة** | All rights reserved — details in [LICENSE](LICENSE) |
+| 🔐 **الأمان** | [Security checklist](SECURITY.md) |
 
 ## 📸 لقطات
 
