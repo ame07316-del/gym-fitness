@@ -126,6 +126,7 @@ function syncClock() {
 
 function subscribeClock(cb: () => void) {
   clockListeners.add(cb);
+  if (syncClock()) cb();
   if (clockTimer === null) {
     clockTimer = window.setInterval(() => {
       if (syncClock()) clockListeners.forEach((l) => l());
@@ -141,8 +142,13 @@ function subscribeClock(cb: () => void) {
 }
 
 /** الوقت الحالي + الساعة في القاهرة — بيتحدث كل 30 ثانية ومن غير setState يدوي */
+const getClockSnapshot = () => clock;
+const getServerClockSnapshot = () => EMPTY_CLOCK;
+
 export function useClock(): Clock {
-  return useSyncExternalStore(subscribeClock, () => (syncClock(), clock), () => EMPTY_CLOCK);
+  // The snapshot getter must be stable. Mutating the clock from getSnapshot
+  // makes React think the external store changed during every render.
+  return useSyncExternalStore(subscribeClock, getClockSnapshot, getServerClockSnapshot);
 }
 
 /** true بعد ما المتصفح يريتشر الصفحة (لأي شيء بيعتمد على وقت أو localStorage) */

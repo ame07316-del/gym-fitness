@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft, ArrowRight, Banknote, CalendarClock, Check, CircleCheck, CreditCard, LoaderCircle, X,
@@ -51,14 +51,22 @@ export default function Checkout() {
 
   const step = checkout.step;
 
-  useEffect(() => {
-    if (checkout.open) {
-      setDone(null);
-      setErrors({});
-      setCheckoutStep(0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkout.open]);
+  // Reset local checkout data when the modal closes. Besides avoiding stale
+  // validation errors, this removes card/OTP data from memory after checkout.
+  const handleClose = useCallback(() => {
+    setDone(null);
+    setErrors({});
+    setCard({ number: "", exp: "", cvv: "", holder: "" });
+    setCardErrors({});
+    setPayPhase("idle");
+    setPayMsg("");
+    setIntent(null);
+    setOtp("");
+    setWallet("");
+    setPay("card");
+    setForm({ name: "", phone: "", goal: GOALS[0], start: TIME_SLOTS[3].id, notes: "" });
+    closeCheckout();
+  }, [closeCheckout]);
 
   const submitLead = () => {
     const e: Record<string, string> = {};
@@ -162,7 +170,7 @@ export default function Checkout() {
   return (
     <Modal
       open={checkout.open}
-      onClose={closeCheckout}
+      onClose={handleClose}
       size="lg"
       title={step === 3 ? "تم تفعيل عضويتك 🎉" : "إكمال الاشتراك"}
       sub={
@@ -183,7 +191,7 @@ export default function Checkout() {
           <div className="grid gap-2 sm:grid-cols-2">
             <button
               onClick={() => {
-                closeCheckout();
+                handleClose();
                 setPanelOpen(true);
               }}
               className="flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-black text-white transition hover:bg-brand-soft"
@@ -202,7 +210,7 @@ export default function Checkout() {
         ) : (
           <div className="flex items-center justify-between gap-3">
             <button
-              onClick={() => (step === 0 ? closeCheckout() : setCheckoutStep(step - 1))}
+              onClick={() => (step === 0 ? handleClose() : setCheckoutStep(step - 1))}
               className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold text-white/55 transition hover:bg-white/5 hover:text-white"
             >
               {step === 0 ? "إلغاء" : <><ArrowRight className="h-4 w-4" /> رجوع</>}
@@ -272,10 +280,13 @@ export default function Checkout() {
           exit={{ opacity: 0, x: -24 }}
           transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
         >
-          {step === 0 && <ReviewStep />}
-          {step === 1 && <LeadStep />}
-          {step === 2 && <PayStep />}
-          {step === 3 && <DoneStep />}
+          {/* These are render helpers, not nested component types. Calling them
+              directly keeps the input DOM node stable while typing, so focus is
+              not lost after every keystroke. */}
+          {step === 0 && ReviewStep()}
+          {step === 1 && LeadStep()}
+          {step === 2 && PayStep()}
+          {step === 3 && DoneStep()}
         </motion.div>
       </AnimatePresence>
     </Modal>
@@ -288,7 +299,7 @@ export default function Checkout() {
         <div className="rounded-2xl border border-line bg-surface/50 p-4">
           <div className="flex items-center justify-between">
             <h4 className="text-base font-black">باقة {quote.planName}</h4>
-            <button onClick={closeCheckout} className="text-xs font-bold text-brand-soft hover:underline">
+            <button onClick={handleClose} className="text-xs font-bold text-brand-soft hover:underline">
               غيّر الباقة
             </button>
           </div>
