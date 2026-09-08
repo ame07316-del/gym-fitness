@@ -43,6 +43,7 @@ export function createMemoryRepo(db: MemoryDb = memoryDb): Repo {
 
   return {
     kind: "memory",
+    label: "الذاكرة (وضع التجربة)",
     sql: null,
     bootedAt: () => db.bootedAt,
 

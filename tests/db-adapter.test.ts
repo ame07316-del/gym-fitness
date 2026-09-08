@@ -255,6 +255,18 @@ describe("buildOverview — SQL aggregates = نفس أرقام حساب الذا
     expect(fromSql.daily.reduce((s, d) => s + d.orders, 0)).toBe(3);
   });
 
+  it("صف addon_ids مش array (استيراد قديم) مش بيوقّع اللوحة", async () => {
+    // اتكشفت من سكربت الزرع: postgres.js عمل double-encode فبقت القيمة jsonb string
+    // بدل array، و jsonb_array_elements_text رمى «cannot extract elements from a scalar»
+    // وضرب /api/admin/overview كله 500. الاستعلام دلوقتي بيتخطى الصفوف دي.
+    await repo.addOrder(order({ orderId: "FZ-BAD", addonIds: ["coach"] }));
+    await pglite.exec(`update subscriptions set addon_ids = '"[\\"coach\\"]"'::jsonb where order_id = 'FZ-BAD'`);
+
+    const out = await sqlOverview(client, NOW, NOW);
+    expect(out.orders.total).toBe(1);
+    expect(out.orders.addons).toEqual([]);
+  });
+
   it("قاعدة فاضية مش بتكسر (كل الأرقام أصفار)", async () => {
     const empty = await sqlOverview(client, NOW, NOW);
     expect(empty.revenue).toEqual({ total: 0, today: 0, week: 0, avgOrder: 0, vat: 0 });

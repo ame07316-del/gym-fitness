@@ -39,6 +39,8 @@ Project ← Settings ← Domains اربط `fitzone-pro.vercel.app` أو `www.fit
 بتبدأ من صفر وبيانات الأدمن بتضيع. أي Postgres بيحل المشكلة، والمشروع بيختار الدرايفر لوحده:
 **Supabase** (postgres.js على الـ pooler) أو **Neon** (HTTP driver).
 
+> 📘 لو Supabase: فيه دليل بالخطوات المملة (فين تدوس بالظبط + جدول أعطال) في **[docs/SUPABASE-SETUP.md](./SUPABASE-SETUP.md)**.
+
 ### الخيار أ) Supabase
 
 1. [supabase.com](https://supabase.com) ← **New project** ← Region **Frankfurt (eu-central-1)** ← احفظ الـ Database password.
@@ -53,7 +55,8 @@ DATABASE_URL='postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-eu-central-1.pool
   npm run db:migrate
 ```
 
-5. **Redeploy** المشروع، وافتح **Supabase ← Table Editor** بعد أول حجز تشوف الصفوف.
+5. اتأكد قبل ما تنشر: `npm run db:check` — بيقولك الاتصال والجداول وعدد الصفوف (و`npm run db:seed` لبيانات ديمو).
+6. **Redeploy** المشروع، وافتح **Supabase ← Table Editor** بعد أول حجز تشوف الصفوف. في `/admin` المفروض الشريط يبقى أخضر: «متوصّل بداتابيز».
 
 > ⚠️ **متستخدمش الـ Direct connection** (`db.<ref>.supabase.co:5432`) على Vercel — IPv6 بس ومش هيتوصل.
 > والـ transaction pooler مبيدعمش prepared statements، عشان كده الأدابتر بيبعت `prepare: false` و`max: 1` أوتوماتيك.

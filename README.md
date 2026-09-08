@@ -11,7 +11,7 @@
   <a href="#"><img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-black?logo=next.js"></a>
   <a href="#"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript"></a>
   <a href="#"><img alt="Postgres" src="https://img.shields.io/badge/Postgres-Supabase%20%7C%20Neon%20%2B%20Drizzle-336791?logo=postgresql&logoColor=white"></a>
-  <a href="tests/"><img alt="Tests" src="https://img.shields.io/badge/vitest-87%20passing-6E9F18"></a>
+  <a href="tests/"><img alt="Tests" src="https://img.shields.io/badge/vitest-88%20passing-6E9F18"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-All%20rights%20reserved-orange"></a>
 </p>
 
@@ -36,7 +36,7 @@
 ## ما الذي يُظهره هذا المشروع (English — for recruiters)
 
 - **Real Postgres behind a one-file seam** — Drizzle ORM + `drizzle-kit` migrations, running on **Supabase or Neon** (the driver is picked from the connection string: postgres.js over the Supabase pooler, or Neon's HTTP driver); `app/lib/server/db.ts` picks the Postgres adapter when `DATABASE_URL` is set and falls back to the in-memory one otherwise, so `npm run dev` and CI still need **zero configuration**. The admin dashboard runs as SQL aggregates (`count(*) filter`, `group by`, `jsonb_array_elements_text`), and the adapter is tested against a real Postgres (PGlite/WASM) using the committed migration.
-- **Pricing engine + admin layer with 87 unit tests** — plan × cycle × add-ons × coupon rules (minimums, caps) × 14% Egyptian VAT, all money rounded to piasters in one place.
+- **Pricing engine + admin layer with 88 unit tests** — plan × cycle × add-ons × coupon rules (minimums, caps) × 14% Egyptian VAT, all money rounded to piasters in one place.
 - **Payment UX without a gateway** — client-side Luhn + brand detection (Visa/Mastercard/Amex/**mada**), server-side decline simulation, 3-D Secure challenge step, per-field error mapping. Same contract as Stripe/Paymob, so the real switch is two function bodies.
 - **Zero `fetch` scattered in components** — one `apiFetch` module + a `rewrites.beforeFiles` proxy: point `BACKEND_URL` at any Laravel/Node API and nothing else changes.
 - **Field-level server validation in the UI** — a `422 { fields: { "member.phone": "…" } }` lands under the exact input automatically.
@@ -51,7 +51,7 @@
 nvm use                # Node 22 (راجع .nvmrc)
 npm install
 npm run dev            # http://localhost:3000 — بيسمع على 0.0.0.0 للمعاينات الخارجية
-npm test               # 87 اختبار: الأسعار + الكروت + عقد الـ API + لوحة الإدارة + أدابتر الداتابيز
+npm test               # 88 اختبار: الأسعار + الكروت + عقد الـ API + لوحة الإدارة + أدابتر الداتابيز
 npm run typecheck      # tsc --noEmit
 npm run lint           # eslint
 npm run build          # production build
@@ -63,6 +63,7 @@ npm run build          # production build
 ```bash
 echo 'DATABASE_URL=postgresql://…neon.tech/neondb?sslmode=require' >> .env.local
 npm run db:migrate     # ينشئ bookings / subscriptions / payments
+npm run db:check       # دكتور: الاتصال + الجداول + عدد الصفوف + فحص خصوصية الدفع
 ```
 
 ## إيه الجديد
@@ -188,7 +189,16 @@ DATABASE_URL='postgresql://postgres.abcdefghijkl:PASSWORD@aws-0-eu-central-1.poo
 npm run dev      # اعمل حجز/اشتراك، وافتح /admin تلاقيه في الجداول
 ```
 
-تحب تتأكد من غير ما تفتح الموقع؟ **Supabase ← Table Editor** هتلاقي `bookings` و`subscriptions` و`payments`.
+5. اتأكد إن كله تمام:
+
+```bash
+npm run db:check     # ✓ الاتصال شغال · ✓ الجداول التلاتة · عدد الصفوف
+npm run db:seed      # (اختياري) بيانات ديمو عشان /admin تبان
+```
+
+في `/admin` هتلاقي شريط أخضر مكتوب فيه **«متوصّل بداتابيز — Supabase · postgres.js»** بدل شريط وضع التجربة. وللتأكد من ناحية Supabase: **Table Editor** ← `bookings` / `subscriptions` / `payments`.
+
+> 📘 عايز الخطوات بالتفصيل الممل (فين تدوس بالظبط + جدول أعطال كامل)؟ **[docs/SUPABASE-SETUP.md](docs/SUPABASE-SETUP.md)**
 
 > **ليه فيه وصلتين؟** الـ transaction pooler بيوزّع كل استعلام على كونكشن مختلف — أحسن حاجة للـ serverless،
 > بس مبيدعمش prepared statements ولا بعض أوامر الـ DDL. عشان كده الأدابتر بيبعت `prepare: false` و`max: 1`
@@ -205,10 +215,14 @@ npm run db:migrate && npm run dev
 
 | الأمر | بيعمل إيه |
 | --- | --- |
-| `npm run db:generate` | تعدّل `db/schema.ts` → بيكتب ملف SQL جديد في `drizzle/` (اعمله commit) |
 | `npm run db:migrate` | بينفّذ الملفات اللي لسه ماتنفّذتش على `DATABASE_URL` (على Supabase استخدم بورت 5432) |
+| `npm run db:check` | **دكتور الداتابيز**: بيقولك المزوّد والدرايفر، زمن الاتصال، الجداول موجودة ولا لأ، عدد الصفوف، والمايجريشن المتنفّذة — ولو فيه خطأ بيشرحه بالعربي ويقولك الحل |
+| `npm run db:seed` | بيانات ديمو على مدار آخر ٧ أيام (٦ حجوزات · ٥ اشتراكات · ٧ مدفوعات) عشان `/admin` ما تبقاش فاضية — آمن للتكرار، و`npm run db:seed -- --clear` بيمسحها |
+| `npm run db:generate` | تعدّل `db/schema.ts` → بيكتب ملف SQL جديد في `drizzle/` (اعمله commit) |
 | `npm run db:push` | يزامن السكيما على طول من غير ملف مايجريشن (للتجارب السريعة بس) |
 | `npm run db:studio` | متصفح جداول في البراوزر |
+
+> `db:migrate` سكربت بتاعنا (`scripts/db-migrate.mjs`) مش `drizzle-kit migrate` مباشرة — عشان يشتغل حتى لو الوصلة على الـ transaction pooler (`prepare: false`)، ويرمي رسايل مفهومة. النسخة الخام لسه موجودة في `npm run db:migrate:kit`.
 
 ### الجداول التلاتة (`app/lib/server/db/schema.ts` — الأعمدة من `docs/BACKEND-CONTRACT.md`)
 
@@ -311,7 +325,7 @@ app/
     store.tsx           GymProvider: سلة الاشتراك، العضوية، المفضلات، الحجوزات
     storage.ts          usePersistentState / useClock / useHydrated
     utils.ts            egp()، fmtDate()، isEGPhone()/EG_PHONE_RE، cx()…
-tests/                  87 اختبار (vitest) — بيزودي كل يوم
+tests/                  88 اختبار (vitest) — بيزودي كل يوم
 drizzle/                مايجريشن SQL مولّدة بـ drizzle-kit (0000_init.sql + meta)
 drizzle.config.ts       إعدادات drizzle-kit (بتقرأ .env.local لوحدها)
 docs/                   BACKEND-CONTRACT.md · DEPLOY-VERCEL.md · screenshots/

@@ -80,6 +80,8 @@ export type DbSnapshot = {
  */
 export type Repo = {
   readonly kind: "memory" | "postgres";
+  /** وصف بشري للتخزين الشغال — بيتعرض في لوحة الإدارة (مثال: «Supabase · postgres.js») */
+  readonly label: string;
   /** عميل Drizzle (Postgres بس) — `null` في وضع الذاكرة */
   readonly sql: SqlClient | null;
   bootedAt(): number;

@@ -11,7 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node scripts/db-migrate.mjs",
+    "db:migrate:kit": "drizzle-kit migrate",
+    "db:check": "node scripts/db-check.mjs",
+    "db:seed": "node scripts/db-seed.mjs",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },

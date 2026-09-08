@@ -225,7 +225,10 @@ export async function sqlOverview(client: SqlClient, bootedAt: number, now = Dat
           from ${subs} where coupon is not null and coupon <> '' group by coupon
         union all
         select 'addon', a.id, '', count(*)::int, 0::float8
-          from ${subs} s cross join lateral jsonb_array_elements_text(s.addon_ids) as a(id) group by a.id
+          from ${subs} s cross join lateral jsonb_array_elements_text(s.addon_ids) as a(id)
+          -- الحارس ده مهم: صف واحد فيه addon_ids مش array (استيراد قديم / باك إند تاني)
+          -- كان هيوقّع اللوحة كلها بـ «cannot extract elements from a scalar»
+          where jsonb_typeof(s.addon_ids) = 'array' group by a.id
         order by count desc, key asc
       `,
     ),

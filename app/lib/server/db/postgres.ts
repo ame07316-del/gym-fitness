@@ -79,9 +79,10 @@ export const toPayment = (r: PaymentRow): PaymentIntent => ({
 
 /* --------------------------------- الأدابتر --------------------------------- */
 
-export function createPostgresRepo(client: SqlClient, bootedAt = Date.now()): Repo {
+export function createPostgresRepo(client: SqlClient, bootedAt = Date.now(), label = "Postgres"): Repo {
   return {
     kind: "postgres",
+    label,
     sql: client,
     bootedAt: () => bootedAt,
 
@@ -226,16 +227,31 @@ export function pickDriver(url: string, override = process.env.DATABASE_DRIVER):
   return host.endsWith(".neon.tech") || host.endsWith(".neon.build") ? "neon-http" : "postgres-js";
 }
 
+/** اسم المزوّد من الـ host — بيتعرض في لوحة الإدارة عشان تتأكد إنك موصول بالصح */
+export function describeConnection(url: string, driver: DriverKind = pickDriver(url)) {
+  const host = hostOf(url);
+  const provider = host.endsWith(".neon.tech") || host.endsWith(".neon.build")
+    ? "Neon"
+    : host.includes("supabase")
+      ? "Supabase"
+      : isLocalHost(host)
+        ? "Postgres محلي"
+        : "Postgres";
+  return `${provider} · ${driver === "neon-http" ? "HTTP driver" : "postgres.js"}`;
+}
+
 /** إنشاء الأدابتر من `DATABASE_URL` — بيختار الدرايفر المناسب لوحده */
 export async function createSqlRepo(url: string, driver: DriverKind = pickDriver(url)): Promise<Repo> {
+  const label = describeConnection(url, driver);
+
   if (driver === "neon-http") {
     const [{ neon }, { drizzle }] = await Promise.all([import("@neondatabase/serverless"), import("drizzle-orm/neon-http")]);
-    return createPostgresRepo(drizzle(neon(url)) as unknown as SqlClient);
+    return createPostgresRepo(drizzle(neon(url)) as unknown as SqlClient, Date.now(), label);
   }
 
   const [{ default: postgres }, { drizzle }] = await Promise.all([import("postgres"), import("drizzle-orm/postgres-js")]);
   const client = postgres(url, postgresJsOptions(url));
-  return createPostgresRepo(drizzle(client) as unknown as SqlClient);
+  return createPostgresRepo(drizzle(client) as unknown as SqlClient, Date.now(), label);
 }
 
 /**
