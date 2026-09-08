@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { POST as book, validateBooking } from "@/app/api/bookings/route";
+import { POST as book } from "@/app/api/bookings/route";
+import { validateBooking } from "@/app/lib/server/validate";
 import { POST as subscribe } from "@/app/api/subscribe/route";
 import { GET as payHealth, POST as pay } from "@/app/api/pay/route";
 import { POST as confirm } from "@/app/api/pay/confirm/route";

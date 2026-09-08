@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { intents } from "../route";
+import { db } from "@/app/lib/server/db";
+
+const intents = db.intents;
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +34,7 @@ export async function POST(request: Request) {
     );
   }
 
-  intents.set(reference, { ...intent, status: "succeeded" });
+  intents.set(reference, { ...intent, status: "succeeded", code: "succeeded", updatedAt: Date.now() });
   return NextResponse.json({
     ok: true,
     status: "succeeded",

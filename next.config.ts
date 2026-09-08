@@ -17,8 +17,16 @@ const ONLY = (process.env.BACKEND_ONLY ?? "")
 
 function proxyRules() {
   if (!BACKEND) return [];
-  if (ONLY.length === 0) return [{ source: "/api/:path*", destination: `${BACKEND}/api/:path*` }];
-  return ONLY.map((p) => ({ source: `/api/${p}`, destination: `${BACKEND}/api/${p}` }));
+  if (ONLY.length === 0) {
+    // كل /api/* ما عدا /api/admin/* — جلسة لوحة الإدارة بتتحقق محليًا في Next (proxy.ts + الكوكي).
+    // لو باك إندك بينفّذ مسارات الأدمن، اذكرها صراحة: BACKEND_ONLY=bookings,subscribe,pay,admin
+    return [{ source: "/api/:path((?!admin(?:/|$)).*)", destination: `${BACKEND}/api/:path` }];
+  }
+  // كل مسار مذكور بيشمل الفرعي بتاعه (pay → /api/pay و /api/pay/confirm)
+  return ONLY.flatMap((p) => [
+    { source: `/api/${p}`, destination: `${BACKEND}/api/${p}` },
+    { source: `/api/${p}/:sub*`, destination: `${BACKEND}/api/${p}/:sub*` },
+  ]);
 }
 
 const nextConfig: NextConfig = {

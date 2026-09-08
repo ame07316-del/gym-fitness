@@ -71,4 +71,11 @@ export const ENDPOINTS = {
   subscribe: "/api/subscribe",
   pay: "/api/pay",
   payConfirm: "/api/pay/confirm",
+  /* لوحة الإدارة — محمية بكوكي جلسة (proxy.ts + requireAdmin) */
+  adminSession: "/api/admin/session",
+  adminOverview: "/api/admin/overview",
+  adminBookings: "/api/admin/bookings",
+  adminOrders: "/api/admin/orders",
+  adminPayments: "/api/admin/payments",
+  adminReset: "/api/admin/reset",
 } as const;
