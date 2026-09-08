@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { validateBooking } from "@/app/lib/server/validate";
-import { db, pushCapped, type SubscribeRecord } from "@/app/lib/server/db";
+import { getRepo, type SubscribeRecord } from "@/app/lib/server/db";
 
 export const dynamic = "force-dynamic";
 
@@ -45,16 +45,17 @@ export async function POST(request: Request) {
     endsAt: num(body.endsAt) || Date.now(),
   };
 
-  pushCapped(db.orders, rec);
+  // نفس `orderId` مرتين = صف واحد (idempotency) — سواء في Postgres أو في الذاكرة
+  const order = await (await getRepo()).addOrder(rec);
 
   return NextResponse.json(
-    { ok: true, order: rec, invoice: `INV-${rec.orderId}`, message: `تم تفعيل عضوية ${rec.member.name} — ${rec.planName}` },
+    { ok: true, order, invoice: `INV-${order.orderId}`, message: `تم تفعيل عضوية ${order.member.name} — ${order.planName}` },
     { status: 201 },
   );
 }
 
 export async function GET() {
-  const orders = db.orders;
+  const orders = await (await getRepo()).listOrders();
   const revenue = orders.reduce((s, o) => s + o.total, 0);
   return NextResponse.json({
     total: orders.length,

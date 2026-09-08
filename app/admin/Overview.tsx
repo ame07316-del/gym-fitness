@@ -7,6 +7,9 @@ import AdminShell from "./AdminShell";
 import { Bars, DailyChart, Empty, Panel, Stat } from "./ui";
 import { useAdminData } from "./use-admin";
 import type { AdminOverview } from "@/app/lib/server/admin-stats";
+
+/** `/api/admin/overview` بيزوّد `storage` فوق شكل `AdminOverview` — التخزين الشغال دلوقتي */
+type OverviewResponse = AdminOverview & { storage?: { kind: "memory" | "postgres"; label: string } };
 import { apiFetch, ENDPOINTS } from "@/app/lib/api";
 import { CYCLES, PAY_METHODS } from "@/app/lib/data";
 import { egp } from "@/app/lib/utils";
@@ -27,13 +30,16 @@ const DECLINE_LABEL: Record<string, string> = {
 const fmtTime = (ts: number) => new Intl.DateTimeFormat("ar-EG", { hour: "2-digit", minute: "2-digit" }).format(new Date(ts));
 
 export default function Overview() {
-  const { data, error, loading, updatedAt, reload } = useAdminData<AdminOverview>(ENDPOINTS.adminOverview, { refreshMs: 30_000 });
+  const { data, error, loading, updatedAt, reload } = useAdminData<OverviewResponse>(ENDPOINTS.adminOverview, { refreshMs: 30_000 });
   const toast = useToast();
   const hydrated = useHydrated();
   const [wiping, setWiping] = useState(false);
 
+  const onDb = data?.storage?.kind === "postgres";
+
   const wipe = async () => {
-    if (!window.confirm("هتمسح كل بيانات وضع التجربة (اشتراكات، حجوزات، مدفوعات) من ذاكرة السيرفر. متأكد؟")) return;
+    const where = onDb ? `من الداتابيز (${data?.storage?.label}) — الصفوف بتتمسح فعلًا` : "من ذاكرة السيرفر";
+    if (!window.confirm(`هتمسح كل الاشتراكات والحجوزات والمدفوعات ${where}. متأكد؟`)) return;
     setWiping(true);
     const res = await apiFetch(ENDPOINTS.adminReset, { method: "POST" });
     setWiping(false);
@@ -71,17 +77,29 @@ export default function Overview() {
         </div>
       )}
 
-      {d?.sandbox && (
-        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-gold/30 bg-gold/10 px-4 py-2.5 text-[11px] leading-relaxed text-gold">
-          <span className="inline-flex items-center gap-1.5 font-black">
-            <FlaskConical className="h-3.5 w-3.5" /> وضع التجربة
-          </span>
-          <span className="text-gold/80">
-            التخزين in-memory — البيانات بتتصفر مع كل إعادة تشغيل للسيرفر (شغال من {hydrated ? fmtTime(d.bootedAt) : "…"}). في الإنتاج بدّل{" "}
-            <span className="num">app/lib/server/db.ts</span> بداتابيز حقيقية.
-          </span>
-        </div>
-      )}
+      {/* التخزين الشغال: داتابيز حقيقية ولا ذاكرة */}
+      {d &&
+        (onDb ? (
+          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-mint/30 bg-mint/10 px-4 py-2.5 text-[11px] leading-relaxed text-mint">
+            <span className="inline-flex items-center gap-1.5 font-black">
+              <Database className="h-3.5 w-3.5" /> متوصّل بداتابيز
+            </span>
+            <span className="text-mint/80">
+              <span className="num">{d.storage?.label}</span> — الحجوزات والاشتراكات والمدفوعات محفوظة وبتفضل بعد إعادة التشغيل والـ deploy.
+              {d.sandbox ? " (بوابة الدفع لسه وضع تجربة — مفيش فلوس بتتحرك.)" : ""}
+            </span>
+          </div>
+        ) : (
+          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-gold/30 bg-gold/10 px-4 py-2.5 text-[11px] leading-relaxed text-gold">
+            <span className="inline-flex items-center gap-1.5 font-black">
+              <FlaskConical className="h-3.5 w-3.5" /> وضع التجربة
+            </span>
+            <span className="text-gold/80">
+              التخزين in-memory — البيانات بتتصفر مع كل إعادة تشغيل للسيرفر (شغال من {hydrated ? fmtTime(d.bootedAt) : "…"}). عايز تخزين دايم؟ حط{" "}
+              <span className="num">DATABASE_URL</span> وشغّل <span className="num">npm run db:migrate</span>.
+            </span>
+          </div>
+        ))}
 
       {/* أرقام رئيسية */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">

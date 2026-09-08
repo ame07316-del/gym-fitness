@@ -14,6 +14,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "المسح متاح في وضع التجربة بس — في الإنتاج البيانات في الداتابيز", code: "forbidden" }, { status: 403 });
   }
 
-  resetDb();
+  await resetDb();
   return NextResponse.json({ ok: true, message: "اتمسحت بيانات وضع التجربة" });
 }
