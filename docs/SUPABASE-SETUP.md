@@ -121,6 +121,17 @@ DATABASE_URL='postgresql://postgres.abcdefghijklmnop:الباسورد@aws-0-eu-c
 الملف ده مش بس بيعمل الجداول — كمان بيسجّل المايجريشن في `drizzle.__drizzle_migrations` بنفس الـ hash،
 يعني لو شغّلت `npm run db:migrate` بعد كده مش هيحاول يعملها تاني ولا هيقع بـ «already exists».
 
+### ☠️ عايز تبدأ من الصفر خالص
+
+لو الداتابيز فيها خرابيط من محاولات قديمة وعايز تمسح **كل حاجة** في `public` وتبني من جديد:
+الزق **[`drizzle/supabase-wipe-and-install.sql`](../drizzle/supabase-wipe-and-install.sql)** في SQL Editor ← **Run**.
+
+بيمسح كل الجداول والـ views والـ enums في `public` (بما فيها أي جدول من أدوات تانية)، وبعدين
+يبني `bookings` · `subscriptions` · `payments` بالسكيما الصح ويسجّل المايجريشن عند drizzle.
+سكيمات Supabase الداخلية (`auth` · `storage` · `extensions`) مش بتتلمس.
+
+**مفيش تراجع** — لو فيه بيانات مهمة خدلها Backup الأول.
+
 ### ⚠️ لو الداتابيز فيها جداول قديمة بنفس الأسماء
 
 لو `bookings` أو `subscriptions` موجودة قبل كده من أداة تانية (بأعمدة مختلفة)، ملف `supabase-setup.sql`

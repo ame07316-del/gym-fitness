@@ -201,6 +201,7 @@ npm run db:seed      # (اختياري) بيانات ديمو عشان /admin ت
 > 📘 عايز الخطوات بالتفصيل الممل (فين تدوس بالظبط + جدول أعطال كامل)؟ **[docs/SUPABASE-SETUP.md](docs/SUPABASE-SETUP.md)**
 >
 > 🅱️ **من غير أدوات محلية:** الزق **[`drizzle/supabase-setup.sql`](drizzle/supabase-setup.sql)** في **Supabase ← SQL Editor ← Run** — بيعمل الجداول *وبيسجّل المايجريشن* عند drizzle، و**[`drizzle/supabase-seed.sql`](drizzle/supabase-seed.sql)** بيانات ديمو اختيارية.
+> وفيه كمان **[`supabase-wipe-and-install.sql`](drizzle/supabase-wipe-and-install.sql)** (يمسح `public` كلها ويبني من الصفر) و**[`supabase-reinstall.sql`](drizzle/supabase-reinstall.sql)** (يمسح جداولنا التلاتة بس).
 
 > **ليه فيه وصلتين؟** الـ transaction pooler بيوزّع كل استعلام على كونكشن مختلف — أحسن حاجة للـ serverless،
 > بس مبيدعمش prepared statements ولا بعض أوامر الـ DDL. عشان كده الأدابتر بيبعت `prepare: false` و`max: 1`
