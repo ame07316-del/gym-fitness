@@ -3,8 +3,9 @@
  *
  * فيه أدابتر واحد بواجهة واحدة (`Repo`) بس بتنفيذين:
  *
- *   1. **Postgres (Neon)** — لما `DATABASE_URL` موجود: Drizzle ORM فوق
- *      `@neondatabase/serverless` (HTTP driver — من غير TCP pool، مناسب للـ serverless).
+ *   1. **Postgres** — لما `DATABASE_URL` موجود: Drizzle ORM، والدرايفر بيتحدد من الـ URL:
+ *      Neon → `@neondatabase/serverless` (SQL over HTTP)، وأي بوستجرس تاني (Supabase،
+ *      RDS، VPS…) → `postgres` (postgres.js) على TCP + TLS.
  *   2. **Memory** — لما مش موجود: نفس مخزن الذاكرة القديم على `globalThis`،
  *      عشان `npm run dev` و `npm test` يفضلوا شغالين **من غير أي إعداد** (فلسفة المشروع).
  *
@@ -118,9 +119,9 @@ async function createRepo(): Promise<Repo> {
     const { createMemoryRepo } = await import("./db/memory");
     return createMemoryRepo();
   }
-  // استيراد كسول: من غير `DATABASE_URL` الدرايفر مش بيتحمّل أصلًا
-  const { createNeonRepo } = await import("./db/postgres");
-  return createNeonRepo(url);
+  // استيراد كسول: من غير `DATABASE_URL` مفيش درايفر بيتحمّل أصلًا
+  const { createSqlRepo } = await import("./db/postgres");
+  return createSqlRepo(url);
 }
 
 /**

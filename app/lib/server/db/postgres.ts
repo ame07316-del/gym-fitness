@@ -1,9 +1,13 @@
 /**
- * أدابتر Postgres — Drizzle ORM فوق `@neondatabase/serverless` (HTTP driver).
+ * أدابتر Postgres — Drizzle ORM، ونفس الكود بيشتغل على أي بوستجرس:
  *
- * ليه الـ HTTP driver؟ لأن كل Route Handler في Vercel بيشتغل في lambda قصيرة العمر،
- * فمفيش فايدة من TCP pool: كل استعلام بيتبعت كـ HTTPS request واحد (`fetch`)،
- * يعني صفر connection leaks وشغال على Edge برضه.
+ *   • **Neon**     → `@neondatabase/serverless` (SQL over HTTP): كل استعلام HTTPS request
+ *                     واحد، صفر connection leaks في الـ serverless، وشغال على Edge.
+ *   • **Supabase** → `postgres` (postgres.js) على الـ pooler بتاعهم (Supavisor) —
+ *                     وأي بوستجرس تاني (RDS / VPS / دوكر محلي) بيمشي بنفس الدرايفر.
+ *
+ * الاختيار بيتم في `pickDriver()` من الـ host، والباقي (الاستعلامات، الـ upserts،
+ * الـ aggregates) مشترك 100% بين الاتنين.
  *
  * الدالة `createPostgresRepo` بتاخد أي عميل Drizzle متوافق مع Postgres، عشان
  * الاختبارات تشغّل **نفس الكود** فوق PGlite (Postgres حقيقي بالـ WASM) من غير سيرفر.
@@ -190,9 +194,67 @@ export function createPostgresRepo(client: SqlClient, bootedAt = Date.now()): Re
   };
 }
 
-/** إنشاء الأدابتر من `DATABASE_URL` بتاع Neon (`postgresql://…@ep-xxx.neon.tech/db?sslmode=require`) */
-export async function createNeonRepo(url: string): Promise<Repo> {
-  const [{ neon }, { drizzle }] = await Promise.all([import("@neondatabase/serverless"), import("drizzle-orm/neon-http")]);
-  const client = drizzle(neon(url), { casing: "snake_case" });
-  return createPostgresRepo(client as unknown as SqlClient);
+/* ------------------------------- اختيار الدرايفر ------------------------------- */
+
+/**
+ * أي Postgres ينفع — بس الوصلة نفسها بتختلف:
+ *
+ *   • `neon-http`   → Neon: كل استعلام HTTPS request واحد (مفيش TCP ولا pool).
+ *   • `postgres-js` → Supabase / RDS / VPS / أي بوستجرس عادي عبر TCP + TLS.
+ *
+ * الاختيار أوتوماتيك من الـ host، وتقدر تجبره بـ `DATABASE_DRIVER=neon|postgres`.
+ */
+export type DriverKind = "neon-http" | "postgres-js";
+
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+};
+
+const isLocalHost = (host: string) => host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+
+export function pickDriver(url: string, override = process.env.DATABASE_DRIVER): DriverKind {
+  const forced = (override ?? "").trim().toLowerCase();
+  if (forced.startsWith("neon")) return "neon-http";
+  if (forced) return "postgres-js";
+
+  const host = hostOf(url);
+  // Neon بس هو اللي عنده الـ SQL-over-HTTP endpoint؛ أي حاجة تانية (Supabase وغيرها) TCP
+  return host.endsWith(".neon.tech") || host.endsWith(".neon.build") ? "neon-http" : "postgres-js";
+}
+
+/** إنشاء الأدابتر من `DATABASE_URL` — بيختار الدرايفر المناسب لوحده */
+export async function createSqlRepo(url: string, driver: DriverKind = pickDriver(url)): Promise<Repo> {
+  if (driver === "neon-http") {
+    const [{ neon }, { drizzle }] = await Promise.all([import("@neondatabase/serverless"), import("drizzle-orm/neon-http")]);
+    return createPostgresRepo(drizzle(neon(url)) as unknown as SqlClient);
+  }
+
+  const [{ default: postgres }, { drizzle }] = await Promise.all([import("postgres"), import("drizzle-orm/postgres-js")]);
+  const client = postgres(url, postgresJsOptions(url));
+  return createPostgresRepo(drizzle(client) as unknown as SqlClient);
+}
+
+/**
+ * إعدادات postgres.js اللي بتخلي Supabase (Supavisor) شغال من غير مفاجآت:
+ *
+ *   prepare: false  ← إجباري مع الـ **Transaction pooler** (بورت 6543): كل استعلام ممكن
+ *                     يقع على كونكشن مختلف، فالـ prepared statements بتضرب `prepared
+ *                     statement "s1" already exists`. مش بيضر في session/direct.
+ *   max: 1          ← كل lambda عمرها ثواني؛ pool كبير = كونكشنز ميتة على السيرفر.
+ *   ssl: "require"  ← أي host بعيد لازم TLS (لو الـ URL فيه sslmode بنسيبه هو الحاكم).
+ */
+export function postgresJsOptions(url: string): { prepare: boolean; max: number; idle_timeout: number; connect_timeout: number; ssl?: "require" } {
+  const host = hostOf(url);
+  const hasSslMode = /[?&]sslmode=/i.test(url);
+  return {
+    prepare: false,
+    max: 1,
+    idle_timeout: 20,
+    connect_timeout: 15,
+    ...(hasSslMode || isLocalHost(host) ? {} : { ssl: "require" as const }),
+  };
 }

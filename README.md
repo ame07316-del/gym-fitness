@@ -10,8 +10,8 @@
   <a href="https://github.com/ame07316-del/gym-fitness/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ame07316-del/gym-fitness/actions/workflows/ci.yml/badge.svg"></a>
   <a href="#"><img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-black?logo=next.js"></a>
   <a href="#"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript"></a>
-  <a href="#"><img alt="Postgres" src="https://img.shields.io/badge/Postgres-Neon%20%2B%20Drizzle-336791?logo=postgresql&logoColor=white"></a>
-  <a href="tests/"><img alt="Tests" src="https://img.shields.io/badge/vitest-84%20passing-6E9F18"></a>
+  <a href="#"><img alt="Postgres" src="https://img.shields.io/badge/Postgres-Supabase%20%7C%20Neon%20%2B%20Drizzle-336791?logo=postgresql&logoColor=white"></a>
+  <a href="tests/"><img alt="Tests" src="https://img.shields.io/badge/vitest-87%20passing-6E9F18"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-All%20rights%20reserved-orange"></a>
 </p>
 
@@ -35,8 +35,8 @@
 
 ## ما الذي يُظهره هذا المشروع (English — for recruiters)
 
-- **Real Postgres behind a one-file seam** — Drizzle ORM + Neon serverless (HTTP driver) with `drizzle-kit` migrations; `app/lib/server/db.ts` picks the Postgres adapter when `DATABASE_URL` is set and falls back to the in-memory one otherwise, so `npm run dev` and CI still need **zero configuration**. The admin dashboard runs as SQL aggregates (`count(*) filter`, `group by`, `jsonb_array_elements_text`), and the adapter is tested against a real Postgres (PGlite/WASM) using the committed migration.
-- **Pricing engine + admin layer with 84 unit tests** — plan × cycle × add-ons × coupon rules (minimums, caps) × 14% Egyptian VAT, all money rounded to piasters in one place.
+- **Real Postgres behind a one-file seam** — Drizzle ORM + `drizzle-kit` migrations, running on **Supabase or Neon** (the driver is picked from the connection string: postgres.js over the Supabase pooler, or Neon's HTTP driver); `app/lib/server/db.ts` picks the Postgres adapter when `DATABASE_URL` is set and falls back to the in-memory one otherwise, so `npm run dev` and CI still need **zero configuration**. The admin dashboard runs as SQL aggregates (`count(*) filter`, `group by`, `jsonb_array_elements_text`), and the adapter is tested against a real Postgres (PGlite/WASM) using the committed migration.
+- **Pricing engine + admin layer with 87 unit tests** — plan × cycle × add-ons × coupon rules (minimums, caps) × 14% Egyptian VAT, all money rounded to piasters in one place.
 - **Payment UX without a gateway** — client-side Luhn + brand detection (Visa/Mastercard/Amex/**mada**), server-side decline simulation, 3-D Secure challenge step, per-field error mapping. Same contract as Stripe/Paymob, so the real switch is two function bodies.
 - **Zero `fetch` scattered in components** — one `apiFetch` module + a `rewrites.beforeFiles` proxy: point `BACKEND_URL` at any Laravel/Node API and nothing else changes.
 - **Field-level server validation in the UI** — a `422 { fields: { "member.phone": "…" } }` lands under the exact input automatically.
@@ -51,7 +51,7 @@
 nvm use                # Node 22 (راجع .nvmrc)
 npm install
 npm run dev            # http://localhost:3000 — بيسمع على 0.0.0.0 للمعاينات الخارجية
-npm test               # 84 اختبار: الأسعار + الكروت + عقد الـ API + لوحة الإدارة + أدابتر الداتابيز
+npm test               # 87 اختبار: الأسعار + الكروت + عقد الـ API + لوحة الإدارة + أدابتر الداتابيز
 npm run typecheck      # tsc --noEmit
 npm run lint           # eslint
 npm run build          # production build
@@ -80,7 +80,7 @@ npm run db:migrate     # ينشئ bookings / subscriptions / payments
 | SEO | `app/robots.ts` + `app/sitemap.ts` + metadata عربي كامل + `NEXT_PUBLIC_SITE_URL` للـ OG |
 | 🛡️ لوحة الإدارة | `/admin` — إيراد، اشتراكات، حجوزات، مدفوعات، آخر ٧ أيام، توزيع الباقات/الكوبونات/الإضافات، بحث وفلترة وتصدير CSV، دخول بباسورد + كوكي موقّعة + قفل بعد ٥ محاولات |
 | بلاك إند | `app/api/{bookings,subscribe,pay,pay/confirm}` + `app/api/admin/*` + طبقة `app/lib/api.ts` + بروكسي `BACKEND_URL` |
-| 🗄️ داتابيز حقيقية | Postgres على **Neon** بـ Drizzle ORM + مايجريشن `drizzle-kit` — و fallback أوتوماتيك لمخزن الذاكرة لو `DATABASE_URL` مش موجود |
+| 🗄️ داتابيز حقيقية | Postgres على **Supabase** أو **Neon** بـ Drizzle ORM + مايجريشن `drizzle-kit` — الدرايفر بيتحدد من الـ URL، و fallback أوتوماتيك لمخزن الذاكرة لو `DATABASE_URL` مش موجود |
 | حفظ الحالة | `localStorage` عبر `useSyncExternalStore` → شغّال مع hydration، ومتزامن بين التبويبات، من غير فلاش |
 
 ## 💳 تجربة الدفع (بدون فلوس حقيقية)
@@ -127,7 +127,7 @@ npm run db:migrate     # ينشئ bookings / subscriptions / payments
 
 **الملفات:** `app/admin/*` (الواجهة) · `app/api/admin/*` (session/overview/orders/bookings/payments/reset) · `app/lib/server/{db,admin-auth,admin-guard,admin-stats,admin-list,validate}.ts` · `proxy.ts`.
 
-> أرقام اللوحة بتيجي من `buildOverview()` — على Postgres بتتحسب **جوّه الداتابيز** (aggregates)، وعلى مخزن الذاكرة بتتحسب في JS، وبنفس شكل `AdminOverview` بالظبط (فيه اختبار بيقارن الاتنين حرفيًا). شوف قسم **🗄️ الداتابيز (Postgres + Neon)** تحت.
+> أرقام اللوحة بتيجي من `buildOverview()` — على Postgres بتتحسب **جوّه الداتابيز** (aggregates)، وعلى مخزن الذاكرة بتتحسب في JS، وبنفس شكل `AdminOverview` بالظبط (فيه اختبار بيقارن الاتنين حرفيًا). شوف قسم **🗄️ الداتابيز** تحت.
 
 ## 🧪 الاختبارات
 
@@ -141,38 +141,72 @@ npm run test:watch
 | `tests/pricing.test.ts` | كل باقة × كل مدة، الإضافات، خصم المدة، كوبونات (min/cap)، الضريبة، التوفير، تواريخ التجديد، نمط كارت العضوية |
 | `tests/card.test.ts` | `luhnValid`، `detectBrand` (Visa/MC/Amex/mada)، `expValid`، `validateCard` وأخطاء الحقول |
 | `tests/api-contract.test.ts` | بينادي الـ route handlers نفسها: 201/200/402/401/404/422 وشكل `fields` — **نفس الاختبارات اللي لازم أي باك إند خارجي يعديها** |
-| `tests/db-adapter.test.ts` | أدابتر Postgres على **بوستجرس حقيقي** (PGlite/WASM) والمايجريشن المكتوبة في `drizzle/`: أعمدة الجداول التلاتة، idempotency على `client_ref`/`order_id`/`reference`، `jsonb`/`numeric`، قص المدخلات الطويلة، إن جدول الدفع مفيهوش عمود لرقم كارت، تطابق الـ SQL aggregates مع حساب الذاكرة حقل بحقل، ونفس الـ route handlers شغالة فوق الداتابيز |
+| `tests/db-adapter.test.ts` | اختيار الدرايفر من الـ URL (Supabase/Neon) وإعدادات الـ pooler، وأدابتر Postgres على **بوستجرس حقيقي** (PGlite/WASM) والمايجريشن المكتوبة في `drizzle/`: أعمدة الجداول التلاتة، idempotency على `client_ref`/`order_id`/`reference`، `jsonb`/`numeric`، قص المدخلات الطويلة، إن جدول الدفع مفيهوش عمود لرقم كارت، تطابق الـ SQL aggregates مع حساب الذاكرة حقل بحقل، ونفس الـ route handlers شغالة فوق الداتابيز |
 | `tests/admin.test.ts` | توقيع/انتهاء/تزوير كوكي الجلسة، الدخول (200/401/422/400/429)، الحارس على كل مسارات الأدمن، صحة أرقام `overview` مقابل بيانات مزروعة، بحث/فلترة/ترقيم، CSV بـ BOM ومنع حقن الصيغ، وإن سجل الدفع مفيهوش رقم كارت كامل |
 
-## 🗄️ الداتابيز (Postgres + Neon)
+## 🗄️ الداتابيز (Postgres — Supabase / Neon)
 
 التخزين كله ورا واجهة واحدة في **`app/lib/server/db.ts`** (الـ seam). الملف ده بيختار الأدابتر أول ما التطبيق يشتغل:
 
 | البيئة | الأدابتر | يعني إيه |
 | --- | --- | --- |
-| `DATABASE_URL` موجود | **Postgres** — Drizzle ORM فوق `@neondatabase/serverless` (HTTP driver) | البيانات بتفضل بعد كل deploy، والأدمن بيقرأ من الجداول |
+| `DATABASE_URL` موجود | **Postgres** — Drizzle ORM (الدرايفر بيتحدد من الـ URL) | البيانات بتفضل بعد كل deploy، والأدمن بيقرأ من الجداول |
 | فاضي (الافتراضي) | **Memory** — نفس المخزن القديم على `globalThis` | `npm run dev` و`npm test` و CI شغالين **من غير أي إعداد** |
 
 كل دوال الـ `Repo` async في الحالتين (`addBooking` · `listOrders` · `getPayment` · `updatePayment` · `snapshot` · `reset` …)، فالـ route handlers مبتعرفش أصلًا مين الشغال تحتها.
 
-### تشغيلها على Neon في 4 خطوات
+### أي بوستجرس ينفع — الدرايفر بيتظبط لوحده
+
+| الـ host في `DATABASE_URL` | الدرايفر | ليه |
+| --- | --- | --- |
+| `*.neon.tech` | `@neondatabase/serverless` (SQL over HTTP) | كل استعلام HTTPS request — مفيش TCP pool يتسرّب في الـ serverless |
+| أي حاجة تانية (**Supabase**، RDS، VPS، دوكر محلي) | `postgres` (postgres.js) على TCP + TLS | الوصلة القياسية لبوستجرس |
+
+عايز تجبره؟ `DATABASE_DRIVER=neon|postgres`. الباقي كله (الاستعلامات، الـ upserts، الـ SQL aggregates) **مشترك 100%** بين الاتنين.
+
+### 🟢 التشغيل على Supabase (الأشهر عندنا)
+
+1. [supabase.com](https://supabase.com) ← **New project** ← Region: أقرب حاجة (Frankfurt `eu-central-1`) ← احفظ الـ **Database password**.
+2. من فوق: **Connect** ← تبويب **ORMs** (أو **App Frameworks**) ← اختار **Drizzle** — هتلاقي وصلتين:
+
+   | النوع | البورت | استخدمها في |
+   | --- | --- | --- |
+   | **Transaction pooler** (`...pooler.supabase.com:6543`) | 6543 | **التشغيل** (Vercel/serverless) — دي اللي تحطها في `DATABASE_URL` |
+   | **Session pooler / Direct** | 5432 | **المايجريشن** (`npm run db:migrate`) |
+
+3. حط الوصلة في `.env.local` (بدّل `[YOUR-PASSWORD]` بباسورد الداتابيز):
 
 ```bash
-# 1) اعمل مشروع مجاني على https://neon.tech ← Dashboard ← Connection string (Pooled)
-# 2) حطه في .env.local
+# .env.local
+DATABASE_URL=postgresql://postgres.abcdefghijkl:PASSWORD@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
+```
+
+4. نفّذ المايجريشن مرة واحدة (بالـ session pooler — بورت 5432):
+
+```bash
+DATABASE_URL='postgresql://postgres.abcdefghijkl:PASSWORD@aws-0-eu-central-1.pooler.supabase.com:5432/postgres' npm run db:migrate
+npm run dev      # اعمل حجز/اشتراك، وافتح /admin تلاقيه في الجداول
+```
+
+تحب تتأكد من غير ما تفتح الموقع؟ **Supabase ← Table Editor** هتلاقي `bookings` و`subscriptions` و`payments`.
+
+> **ليه فيه وصلتين؟** الـ transaction pooler بيوزّع كل استعلام على كونكشن مختلف — أحسن حاجة للـ serverless،
+> بس مبيدعمش prepared statements ولا بعض أوامر الـ DDL. عشان كده الأدابتر بيبعت `prepare: false` و`max: 1`
+> أوتوماتيك (فيه اختبار على ده)، والمايجريشن بتتنفّذ على بورت 5432.
+> ومتستخدمش الـ **Direct connection** على Vercel — IPv6 بس.
+
+### أو على Neon
+
+```bash
+# neon.tech ← New Project ← Connection string (Pooled)
 echo 'DATABASE_URL=postgresql://user:pass@ep-xxx-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require' >> .env.local
-
-# 3) نفّذ المايجريشن (بتنشئ الجداول التلاتة + الـ enums + الفهارس)
-npm run db:migrate
-
-# 4) شغّل
-npm run dev            # اعمل حجز/اشتراك من الموقع، وافتح /admin تلاقيه في الداتابيز
+npm run db:migrate && npm run dev
 ```
 
 | الأمر | بيعمل إيه |
 | --- | --- |
 | `npm run db:generate` | تعدّل `db/schema.ts` → بيكتب ملف SQL جديد في `drizzle/` (اعمله commit) |
-| `npm run db:migrate` | بينفّذ الملفات اللي لسه ماتنفّذتش على `DATABASE_URL` |
+| `npm run db:migrate` | بينفّذ الملفات اللي لسه ماتنفّذتش على `DATABASE_URL` (على Supabase استخدم بورت 5432) |
 | `npm run db:push` | يزامن السكيما على طول من غير ملف مايجريشن (للتجارب السريعة بس) |
 | `npm run db:studio` | متصفح جداول في البراوزر |
 
@@ -208,7 +242,8 @@ npm run dev            # اعمل حجز/اشتراك من الموقع، واف
 
 `tests/db-adapter.test.ts` بيشغّل **بوستجرس حقيقي جوّه العملية** عن طريق [PGlite](https://pglite.dev) (بوستجرس متجمّع WASM)،
 وبينفّذ عليه نفس المايجريشن اللي في `drizzle/` — يعني السكيما والمايجريشن والأدابتر والـ aggregates كلهم متغطيين في CI
-من غير أي سيرفر ولا سيكرِت. باقي الاختبارات بتشتغل على أدابتر الذاكرة (الـ `vitest.config.ts` بيفضّي `DATABASE_URL` عمدًا).
+من غير أي سيرفر ولا سيكرِت. وفيه اختبارات كمان لاختيار الدرايفر وإعدادات الـ pooler (`prepare: false` لـ Supavisor).
+باقي الاختبارات بتشتغل على أدابتر الذاكرة (الـ `vitest.config.ts` بيفضّي `DATABASE_URL` عمدًا).
 
 ## 🔌 ربط الباك إند
 
@@ -262,7 +297,7 @@ app/
     server/
       db.ts             🗄️ الـ seam: واجهة Repo واحدة async — بتختار الأدابتر حسب DATABASE_URL
       db/schema.ts      جداول Drizzle: bookings / subscriptions / payments
-      db/postgres.ts    أدابتر Postgres (Neon HTTP driver) — upserts + استعلامات
+      db/postgres.ts    أدابتر Postgres — اختيار الدرايفر (Supabase/Neon) + upserts + استعلامات
       db/memory.ts      أدابتر الذاكرة (globalThis) — الافتراضي من غير إعداد
       validate.ts       validateBooking() المشترك بين bookings و subscribe
       admin-auth.ts     كوكي HMAC + باسورد + safeEqual (Web Crypto — بيشتغل في proxy و handlers)
@@ -276,7 +311,7 @@ app/
     store.tsx           GymProvider: سلة الاشتراك، العضوية، المفضلات، الحجوزات
     storage.ts          usePersistentState / useClock / useHydrated
     utils.ts            egp()، fmtDate()، isEGPhone()/EG_PHONE_RE، cx()…
-tests/                  84 اختبار (vitest) — بيزودي كل يوم
+tests/                  87 اختبار (vitest) — بيزودي كل يوم
 drizzle/                مايجريشن SQL مولّدة بـ drizzle-kit (0000_init.sql + meta)
 drizzle.config.ts       إعدادات drizzle-kit (بتقرأ .env.local لوحدها)
 docs/                   BACKEND-CONTRACT.md · DEPLOY-VERCEL.md · screenshots/
@@ -292,12 +327,12 @@ public/images/          hero + جيم + كوتشات + 6 صور قبل/بعد (1
 3. «صممت الـ integration seam: صفر `fetch` في الكومبوننتات، ملف واحد `api.ts` + بروكسي بمتغير بيئة — Laravel اتلحق من غير تعديل واجهة واحدة.»
 4. «العقد مكتوب في `docs/BACKEND-CONTRACT.md` بنفس الاختبارات اللي بيشغّلها الباك إند الوهمي، فالفريق التاني يقدر ينفذه مستقلة.»
 5. «RTL عربي صح: القياس من اليمين، الاتجاهات معكوسة في السلايدرات، والخط self-hosted عشان ما يعتمدش على CDN.»
-6. «التخزين ورا واجهة واحدة (`Repo`): Postgres على Neon بـ Drizzle لما `DATABASE_URL` موجود، ومخزن ذاكرة لما مش موجود — نفس الدوال ونفس الاختبارات، والـ CI بيعدّي من غير داتابيز أصلًا.»
+6. «التخزين ورا واجهة واحدة (`Repo`): Postgres بـ Drizzle لما `DATABASE_URL` موجود (Supabase أو Neon — الدرايفر بيتحدد من الـ URL)، ومخزن ذاكرة لما مش موجود — نفس الدوال ونفس الاختبارات، والـ CI بيعدّي من غير داتابيز أصلًا.»
 7. «لوحة الأدمن مش صفحة مخفية: `proxy.ts` + تحقق في كل handler، كوكي موقّعة HMAC مش بتشيل الباسورد، rate-limit على الدخول، ومفيش رقم كارت كامل بيتخزن حتى في سجل المدفوعات.»
 
 ## عشان يبقى إنتاج حقيقي
 
-1. **قاعدة بيانات**: ✅ اتعملت — Postgres (Neon) + Drizzle + مايجريشن. حط `DATABASE_URL` وشغّل `npm run db:migrate`؛ من غيره المشروع بيرجع لمخزن الذاكرة لوحده.
+1. **قاعدة بيانات**: ✅ اتعملت — Postgres (Supabase أو Neon) + Drizzle + مايجريشن. حط `DATABASE_URL` وشغّل `npm run db:migrate`؛ من غيره المشروع بيرجع لمخزن الذاكرة لوحده.
 2. **بوابة دفع فعلية**: `NEXT_PUBLIC_PAYMENT_PROVIDER=paymob|fawry|stripe` + `authorize()`/`confirmPayment()`.
 3. **الأرقام والروابط**: `app/lib/data.ts` → `GYM` (واتساب، تليفون، عنوان، ميعاد الشغل) و`COUPONS` و`ADDONS`.
 4. **دومين الـ OG**: `NEXT_PUBLIC_SITE_URL` في البيئة عشان `metadataBase` والـ sitemap.

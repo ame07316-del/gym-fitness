@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { computeOverview, sqlOverview, buildOverview } from "@/app/lib/server/admin-stats";
 import { setRepo, type BookingRecord, type PaymentIntent, type Repo, type SqlClient, type SubscribeRecord } from "@/app/lib/server/db";
 import { createMemoryRepo } from "@/app/lib/server/db/memory";
-import { createPostgresRepo } from "@/app/lib/server/db/postgres";
+import { createPostgresRepo, pickDriver, postgresJsOptions } from "@/app/lib/server/db/postgres";
 import { POST as book } from "@/app/api/bookings/route";
 import { POST as subscribe } from "@/app/api/subscribe/route";
 import { POST as pay } from "@/app/api/pay/route";
@@ -262,6 +262,34 @@ describe("buildOverview — SQL aggregates = نفس أرقام حساب الذا
     expect(empty.orders.coupons).toEqual([]);
     expect(empty.payments).toMatchObject({ total: 0, succeeded: 0, failed: 0, volume: 0 });
     expect(empty.daily.every((d) => d.revenue === 0 && d.orders === 0 && d.bookings === 0)).toBe(true);
+  });
+});
+
+describe("اختيار الدرايفر من شكل الـ DATABASE_URL", () => {
+  const NEON = "postgresql://user:pass@ep-cool-block-123-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require";
+  const SUPA_POOLER = "postgresql://postgres.abcdefgh:pass@aws-0-eu-central-1.pooler.supabase.com:6543/postgres";
+  const SUPA_DIRECT = "postgresql://postgres:pass@db.abcdefgh.supabase.co:5432/postgres";
+
+  it("Neon → HTTP driver، وSupabase/أي بوستجرس تاني → postgres.js", () => {
+    expect(pickDriver(NEON, "")).toBe("neon-http");
+    expect(pickDriver(SUPA_POOLER, "")).toBe("postgres-js");
+    expect(pickDriver(SUPA_DIRECT, "")).toBe("postgres-js");
+    expect(pickDriver("postgresql://postgres:pass@127.0.0.1:5432/postgres", "")).toBe("postgres-js");
+    expect(pickDriver("postgresql://u:p@db.internal.example.com:5432/gym", "")).toBe("postgres-js");
+  });
+
+  it("DATABASE_DRIVER بيكسب على الاكتشاف التلقائي", () => {
+    expect(pickDriver(SUPA_POOLER, "neon")).toBe("neon-http");
+    expect(pickDriver(NEON, "postgres")).toBe("postgres-js");
+  });
+
+  it("إعدادات Supavisor: prepare=false و pool صغير و TLS للبعيد بس", () => {
+    // الـ transaction pooler (6543) بيرمي «prepared statement already exists» من غير prepare:false
+    expect(postgresJsOptions(SUPA_POOLER)).toMatchObject({ prepare: false, max: 1, ssl: "require" });
+    expect(postgresJsOptions(SUPA_DIRECT).ssl).toBe("require");
+    // محلي = من غير TLS، ولو الـ URL محدد sslmode يبقى هو الحاكم
+    expect(postgresJsOptions("postgresql://postgres:pass@127.0.0.1:55432/postgres").ssl).toBeUndefined();
+    expect(postgresJsOptions(`${SUPA_DIRECT}?sslmode=disable`).ssl).toBeUndefined();
   });
 });
 
