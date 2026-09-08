@@ -76,6 +76,23 @@ BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← ال
 
 **ثوابت لازم تتحافظ** (الواجهة بتقرا عليها): `ok`, `status` ∈ `succeeded|requires_action|failed`, `reference`, `message`, `amount`. وأي حاجة تانية تزوّدها (invoice id, gateway id, payment_url) بتوصل في `res.data` من غير ما تحتاج تعديل في الفرونت.
 
+### لوحة الإدارة — `GET /api/admin/*` (محمية بكوكي جلسة)
+
+لو هتنقل الأدمن للباك إند بتاعك، دي المسارات اللي الواجهة في `app/admin/*` بتناديها. كلها بترجع `401 { error, code: "unauthorized" }` من غير جلسة.
+
+| المسار | الرد |
+| --- | --- |
+| `GET /api/admin/session` | `{ authenticated, enabled, devPassword, sessionHours }` |
+| `POST /api/admin/session` `{ password }` | `200` + كوكي `fz_admin` (httpOnly) · `401 { code: "invalid_password", fields.password, attemptsLeft }` · `429 { code: "locked", retryAfter }` · `503 { code: "disabled" }` |
+| `DELETE /api/admin/session` | يمسح الكوكي |
+| `GET /api/admin/overview` | شكل `AdminOverview` في `app/lib/server/admin-stats.ts` (revenue / orders / bookings / payments / daily[7]) |
+| `GET /api/admin/orders?q=&status=&page=&per=&format=csv` | `{ items, page, pages, per, total }` — أو ملف CSV لو `format=csv` |
+| `GET /api/admin/bookings?…` | نفس الشكل |
+| `GET /api/admin/payments?…` | نفس الشكل — كل عنصر `{ reference, amount, method, brand, last4, status, code, createdAt, updatedAt }` (**آخر ٤ أرقام بس**) |
+| `POST /api/admin/reset` | يمسح بيانات وضع التجربة — `403` لو مش sandbox |
+
+> **لو البروكسي شغال بـ `BACKEND_URL`:** استخدم `BACKEND_ONLY=bookings,subscribe,pay` عشان مسارات `/api/admin/*` تفضل على Next (اللي عنده الجلسة)، أو نفّذ نفس الجلسة عندك وخلي `proxy.ts` يعدّي الكوكي. الاختبارات في `tests/admin.test.ts` هي المواصفة.
+
 ### قواعد الفيلدز المستخدمة في الواجهة
 - الاسم: `trim().length >= 3`
 - الموبايل: `/^(?:\+?2|002)?01[0-9]{9}$/` (المسافات والشرطات بتتشال الأول، و`+2`/`002` اختيارية)

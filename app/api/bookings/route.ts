@@ -1,40 +1,19 @@
-import { EG_PHONE_RE } from "@/app/lib/utils";
 import { NextResponse } from "next/server";
+import { db, pushCapped, type BookingRecord } from "@/app/lib/server/db";
+import { clean, validateBooking } from "@/app/lib/server/validate";
 
 export const dynamic = "force-dynamic";
 
-export type BookingRecord = {
-  id: string;
-  name: string;
-  phone: string;
-  goal: string;
-  slot: string;
-  plan: string;
-  status: string;
-  createdAt: number;
-};
+export type { BookingRecord };
 
 /**
- * مخزن مؤقت في الذاكرة للعرض التوضيحي.
+ * التخزين في `app/lib/server/db.ts` (ذاكرة مشتركة بين كل الـ handlers ولوحة الإدارة).
  * في الإنتاج بدّله بقاعدة بيانات حقيقية (مثلاً جدول bookings في Laravel/MySQL)
- * عن طريق تغيير هذا الملف فقط — الواجهة مش محتاجة تعديل.
+ * عن طريق تغيير طبقة الـ db فقط — الواجهة مش محتاجة تعديل.
+ *
+ * التحقق (`validateBooking`) في `app/lib/server/validate.ts` عشان يتشارك مع /api/subscribe
+ * والاختبارات — ملفات الـ route لازم تصدّر HTTP handlers بس.
  */
-const store: BookingRecord[] = [];
-const MAX = 200;
-
-const clean = (v: unknown, max = 120) => (typeof v === "string" ? v.trim().slice(0, max) : "");
-
-export function validateBooking(body: Record<string, unknown>) {
-  const errors: Record<string, string> = {};
-  const name = clean(body.name, 60);
-  const phone = clean(body.phone, 20).replace(/[\s-]/g, "");
-
-  if (name.length < 3) errors.name = "من فضلك اكتب اسمك الكامل (3 أحرف على الأقل)";
-  if (!EG_PHONE_RE.test(phone)) errors.phone = "رقم موبايل مصري غير صحيح — مثال: 01012345678";
-
-  return { name, phone, goal: clean(body.goal, 60) || "غير محدد", errors };
-}
-
 export async function POST(request: Request) {
   let body: Record<string, unknown>;
   try {
@@ -59,16 +38,16 @@ export async function POST(request: Request) {
     createdAt: typeof body.createdAt === "number" ? body.createdAt : Date.now(),
   };
 
-  store.unshift(record);
-  if (store.length > MAX) store.length = MAX;
+  pushCapped(db.bookings, record);
 
   return NextResponse.json(
-    { ok: true, booking: record, queue: store.length, message: `تم استلام طلب ${name} وهنتواصل معاك على ${phone}` },
+    { ok: true, booking: record, queue: db.bookings.length, message: `تم استلام طلب ${name} وهنتواصل معاك على ${phone}` },
     { status: 201 },
   );
 }
 
 export async function GET() {
+  const store = db.bookings;
   return NextResponse.json({
     total: store.length,
     pending: store.filter((s) => s.status !== "confirmed").length,

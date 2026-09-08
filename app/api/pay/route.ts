@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { db, MAX_ROWS, type PaymentIntent } from "@/app/lib/server/db";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,8 @@ export const dynamic = "force-dynamic";
  */
 const PROVIDER = process.env.NEXT_PUBLIC_PAYMENT_PROVIDER ?? "sandbox";
 
-type Intent = { reference: string; amount: number; status: "requires_action" | "succeeded" | "failed"; createdAt: number };
-export const intents = new Map<string, Intent>();
+/** سجل العمليات — نفس الـ Map اللي بيقرأ منها `/api/pay/confirm` ولوحة الإدارة (في db.ts) */
+const intents = db.intents;
 
 const digits = (v: unknown) => (typeof v === "string" ? v.replace(/\D/g, "") : "");
 
@@ -48,6 +49,13 @@ const DECLINES: Record<string, string> = {
 
 const pretty = (n: string) => n.slice(-4);
 
+/** الـ Map بيكبر مع كل محاولة دفع — بنشيل الأقدم لما يعدّي الحد */
+function trimIntents() {
+  if (intents.size <= MAX_ROWS) return;
+  const oldest = [...intents.values()].sort((a, b) => a.createdAt - b.createdAt).slice(0, intents.size - MAX_ROWS);
+  for (const i of oldest) intents.delete(i.reference);
+}
+
 export async function POST(request: Request) {
   let body: Record<string, unknown>;
   try {
@@ -65,15 +73,16 @@ export async function POST(request: Request) {
   const reference = `pi_s1_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
   const card = (body.card ?? {}) as Record<string, unknown>;
   const n = digits(card.number);
+  const now = Date.now();
 
-  let intent: Intent = { reference, amount, status: "succeeded", createdAt: Date.now() };
+  let status: PaymentIntent["status"] = "succeeded";
   let message = "تم اعتماد العملية";
   let code = "succeeded";
 
   if (method !== "card") {
     message = method === "cash" ? "الحجز محجوز 48 ساعة للدفع في الفرع" : "بانتظار تأكيد تحويل المحفظة";
   } else if (DECLINES[n]) {
-    intent = { ...intent, status: "failed" };
+    status = "failed";
     code = DECLINES[n];
     message =
       code === "card_declined"
@@ -84,21 +93,34 @@ export async function POST(request: Request) {
             ? "البطاقة منتهية الصلاحية"
             : "رمز الأمان (CVV) غير مطابق";
   } else if (!luhnValid(n)) {
-    intent = { ...intent, status: "failed" };
+    status = "failed";
     code = "invalid_number";
     message = "رقم البطاقة غير صحيح — فشل فحص Luhn";
   } else {
-    intent = { ...intent, status: "requires_action" };
+    status = "requires_action";
     code = "requires_action";
     message = "البنك طلب تحقق إضافي 3-D Secure — ادخل الرمز اللي وصلك";
   }
 
+  // بنخزّن آخر 4 أرقام والنوع بس — رقم الكارت الكامل مبيتحفظش في أي مكان
+  const intent: PaymentIntent = {
+    reference,
+    amount,
+    status,
+    method,
+    brand: method === "card" ? brandOf(n) : method,
+    last4: method === "card" ? pretty(n) : "",
+    code,
+    createdAt: now,
+    updatedAt: now,
+  };
   intents.set(reference, intent);
+  trimIntents();
 
   return NextResponse.json(
     {
-      ok: intent.status !== "failed",
-      status: intent.status,
+      ok: status !== "failed",
+      status,
       code,
       provider: PROVIDER,
       reference,
@@ -106,9 +128,9 @@ export async function POST(request: Request) {
       brand: brandOf(n),
       last4: pretty(n),
       message,
-      otpHint: intent.status === "requires_action" ? "OTP: أي 6 أرقام (000000 = رمز غلط)" : undefined,
+      otpHint: status === "requires_action" ? "OTP: أي 6 أرقام (000000 = رمز غلط)" : undefined,
     },
-    { status: intent.status === "failed" ? 402 : 200 },
+    { status: status === "failed" ? 402 : 200 },
   );
 }
 
