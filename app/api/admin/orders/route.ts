@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/app/lib/server/db";
+import { getRepo, LIST_MAX } from "@/app/lib/server/db";
 import { requireAdmin } from "@/app/lib/server/admin-guard";
 import { csvResponse, matches, paginate, parseListQuery, stamp, toCsv } from "@/app/lib/server/admin-list";
 
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   if (denied) return denied;
 
   const query = parseListQuery(request.url);
-  const rows = db.orders.filter(
+  const rows = (await (await getRepo()).listOrders(LIST_MAX)).filter(
     (o) =>
       (!query.status || o.status === query.status) &&
       matches(query.q, o.orderId, o.member.name, o.member.phone, o.planName, o.coupon, o.payment, o.cycle),

@@ -8,5 +8,5 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const denied = await requireAdmin(request);
   if (denied) return denied;
-  return NextResponse.json({ ok: true, ...buildOverview() });
+  return NextResponse.json({ ok: true, ...(await buildOverview()) });
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db, pushCapped, type BookingRecord } from "@/app/lib/server/db";
+import { getRepo, type BookingRecord } from "@/app/lib/server/db";
 import { clean, validateBooking } from "@/app/lib/server/validate";
 
 export const dynamic = "force-dynamic";
@@ -7,13 +7,16 @@ export const dynamic = "force-dynamic";
 export type { BookingRecord };
 
 /**
- * التخزين في `app/lib/server/db.ts` (ذاكرة مشتركة بين كل الـ handlers ولوحة الإدارة).
- * في الإنتاج بدّله بقاعدة بيانات حقيقية (مثلاً جدول bookings في Laravel/MySQL)
- * عن طريق تغيير طبقة الـ db فقط — الواجهة مش محتاجة تعديل.
+ * التخزين في `app/lib/server/db.ts` (الـ seam): جدول `bookings` في Postgres/Neon
+ * لما `DATABASE_URL` موجود، وإلا مخزن الذاكرة المشترك — نفس الدوال في الحالتين
+ * فالهاندلر ده مبيعرفش أصلًا إيه الشغال تحته.
  *
  * التحقق (`validateBooking`) في `app/lib/server/validate.ts` عشان يتشارك مع /api/subscribe
  * والاختبارات — ملفات الـ route لازم تصدّر HTTP handlers بس.
  */
+/** كود حجز فريد لو العميل مبعتش واحد — الوقت + عشوائي (عشان طلبين في نفس الملي ثانية) */
+const newBookingId = () => `BK-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+
 export async function POST(request: Request) {
   let body: Record<string, unknown>;
   try {
@@ -28,7 +31,7 @@ export async function POST(request: Request) {
   }
 
   const record: BookingRecord = {
-    id: clean(body.id, 24) || `BK-${Date.now().toString(36).toUpperCase()}`,
+    id: clean(body.id, 24) || newBookingId(),
     name,
     phone,
     goal,
@@ -38,16 +41,18 @@ export async function POST(request: Request) {
     createdAt: typeof body.createdAt === "number" ? body.createdAt : Date.now(),
   };
 
-  pushCapped(db.bookings, record);
+  const repo = await getRepo();
+  const saved = await repo.addBooking(record);
+  const queue = await repo.countBookings();
 
   return NextResponse.json(
-    { ok: true, booking: record, queue: db.bookings.length, message: `تم استلام طلب ${name} وهنتواصل معاك على ${phone}` },
+    { ok: true, booking: saved, queue, message: `تم استلام طلب ${name} وهنتواصل معاك على ${phone}` },
     { status: 201 },
   );
 }
 
 export async function GET() {
-  const store = db.bookings;
+  const store = await (await getRepo()).listBookings();
   return NextResponse.json({
     total: store.length,
     pending: store.filter((s) => s.status !== "confirmed").length,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db, MAX_ROWS, type PaymentIntent } from "@/app/lib/server/db";
+import { getRepo, type PaymentIntent } from "@/app/lib/server/db";
 
 export const dynamic = "force-dynamic";
 
@@ -8,11 +8,11 @@ export const dynamic = "force-dynamic";
  * المنطق هنا مطابق لسلوك بوابات الدفع: Luhn، قائمة رفض، و 3-D Secure.
  * في الإنتاج: استبدل جسم POST باستدعاء Paymob / Fawry / Stripe Invoice،
  * وخزّن الـ intent id في الداتابيز. شكل الرد (PayResult) مايتغيرش.
+ *
+ * سجل العمليات بيتخزّن في جدول `payments` (أو الذاكرة) من خلال `app/lib/server/db.ts` —
+ * نفس المصدر اللي `/api/pay/confirm` ولوحة الإدارة بيقروا منه.
  */
 const PROVIDER = process.env.NEXT_PUBLIC_PAYMENT_PROVIDER ?? "sandbox";
-
-/** سجل العمليات — نفس الـ Map اللي بيقرأ منها `/api/pay/confirm` ولوحة الإدارة (في db.ts) */
-const intents = db.intents;
 
 const digits = (v: unknown) => (typeof v === "string" ? v.replace(/\D/g, "") : "");
 
@@ -48,13 +48,6 @@ const DECLINES: Record<string, string> = {
 };
 
 const pretty = (n: string) => n.slice(-4);
-
-/** الـ Map بيكبر مع كل محاولة دفع — بنشيل الأقدم لما يعدّي الحد */
-function trimIntents() {
-  if (intents.size <= MAX_ROWS) return;
-  const oldest = [...intents.values()].sort((a, b) => a.createdAt - b.createdAt).slice(0, intents.size - MAX_ROWS);
-  for (const i of oldest) intents.delete(i.reference);
-}
 
 export async function POST(request: Request) {
   let body: Record<string, unknown>;
@@ -114,8 +107,7 @@ export async function POST(request: Request) {
     createdAt: now,
     updatedAt: now,
   };
-  intents.set(reference, intent);
-  trimIntents();
+  await (await getRepo()).addPayment(intent);
 
   return NextResponse.json(
     {
@@ -135,10 +127,11 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
+  const open = (await (await getRepo()).listPayments()).filter((i) => i.status === "requires_action").length;
   return NextResponse.json({
     provider: PROVIDER,
     sandbox: true,
-    openIntents: [...intents.values()].filter((i) => i.status === "requires_action").length,
+    openIntents: open,
     note: "دي نقطة دفع تجريبية — مفيش فلوس بتتحرك.",
   });
 }

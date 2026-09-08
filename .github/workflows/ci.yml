@@ -40,7 +40,9 @@ jobs:
       - name: eslint
         run: npm run lint
 
-      - name: vitest (pricing engine + card rules + API contract)
+      # أدابتر Postgres بيتختبر على PGlite (بوستجرس WASM جوه العملية) — مفيش داتابيز
+      # خارجية ولا سيكرِت في CI، وباقي الاختبارات على أدابتر الذاكرة.
+      - name: vitest (pricing + cards + API contract + db adapter)
         run: npm test
 
       - name: next build

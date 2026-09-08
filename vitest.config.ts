@@ -10,5 +10,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // اختبارات العقد لازم تشتغل على أدابتر الذاكرة حتى لو المطوّر حاطط DATABASE_URL في بيئته.
+    // أدابتر Postgres بيتختبر لوحده في tests/db-adapter.test.ts فوق PGlite.
+    env: { DATABASE_URL: "", POSTGRES_URL: "" },
   },
 });

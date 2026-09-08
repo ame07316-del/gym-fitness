@@ -134,7 +134,14 @@ public function store(Request $r) {
 response()->json(['error' => 'بيانات ناقصة', 'fields' => $e->errors()], 422);
 ```
 
-### سكيل الجدول (MySQL)
+### سكيل الجدول (MySQL — لو باك إندك Laravel)
+
+> 📌 **الريبو ده منفّذ نفس الجداول على Postgres فعلًا**: `app/lib/server/db/schema.ts` (Drizzle ORM)
+> والمايجريشن الجاهزة في [`drizzle/0000_init.sql`](../drizzle/0000_init.sql) — تقدر تاخدها زي ما هي على Neon/Supabase/أي Postgres
+> بـ `npm run db:migrate`. الفرق الوحيد عن الـ MySQL تحت: `bigserial` بدل `auto_increment`، `enum types` بدل `enum(...)` inline،
+> `jsonb` بدل `json`، `timestamptz` بدل `timestamp`، وجدول `payments` فيه **`brand` + `last4`** صراحةً
+> (اللي `/api/admin/payments` بيرجّعهم) بدل ما تخزّن أي بيانات كارت.
+
 ```sql
 create table bookings (
   id bigint auto_increment primary key, client_ref varchar(24) unique,
@@ -158,7 +165,9 @@ create table payments (
   id bigint auto_increment primary key, reference varchar(48) unique,
   order_id varchar(24), amount decimal(10,2), method varchar(12),
   status enum('requires_action','succeeded','failed') default 'requires_action',
-  gateway_ref varchar(64), error_code varchar(32), created_at timestamp default current_timestamp
+  brand varchar(16), last4 char(4),          -- ⚠️ آخر 4 أرقام + الشبكة بس، مفيش رقم كارت كامل
+  gateway_ref varchar(64), error_code varchar(32),
+  created_at timestamp default current_timestamp, updated_at timestamp default current_timestamp
 );
 ```
 
@@ -166,6 +175,7 @@ create table payments (
 - **CORS**: لو مستخدم `BACKEND_URL` (بروكسي) مفيش CORS خالص. لو مستخدم `NEXT_PUBLIC_API_BASE` ضيف `config/cors.php` بـ `paths => ['api/*']` و `allowed_origins => [دومين الفرونت]`.
 - **الأمان**: متسجلش أرقام بطاقات أبدًا. ابعت الكارت للبوابة (Paymob/Fawry/Stripe tokenization) وخزّن `gateway_ref` بس. الواجهة أصلاً بتبعت `card` للـ endpoint بتاعكم ومنه للبوابة — ماتخليش اللوجز يسجل البودي.
 - **idempotency**: الواجهة بتبعت `orderId`/`id` ثابت — استخدمه كمفتاح فريد عشان لو الطلب اتعمل مرتين (ضعف شبكة) ميتعملش مزدوج.
+  (الريبو بيعمل كده بـ `insert … on conflict (client_ref|order_id|reference) do update` — شوف `app/lib/server/db/postgres.ts`.)
 - **idempotent OTP**: لو `reference` اتأكدت قبل كده، ارجع `succeeded` تاني بدل 404.
 - **الأسعار**: الحساب كله في الفرونت (`app/lib/subscription.ts`). في الإنتاج لازم **إعادة حساب الـ total سيرفرًا** وتطابقه، ومتقبلش رقم العميل.
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/app/lib/server/db";
+import { getRepo, LIST_MAX } from "@/app/lib/server/db";
 import { requireAdmin } from "@/app/lib/server/admin-guard";
 import { csvResponse, matches, paginate, parseListQuery, stamp, toCsv } from "@/app/lib/server/admin-list";
 
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   if (denied) return denied;
 
   const query = parseListQuery(request.url);
-  const rows = db.bookings.filter(
+  const rows = (await (await getRepo()).listBookings(LIST_MAX)).filter(
     (b) => (!query.status || b.status === query.status) && matches(query.q, b.id, b.name, b.phone, b.goal, b.slot, b.plan),
   );
 

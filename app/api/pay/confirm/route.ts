@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/app/lib/server/db";
-
-const intents = db.intents;
+import { getRepo } from "@/app/lib/server/db";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +14,8 @@ export async function POST(request: Request) {
 
   const reference = typeof body.reference === "string" ? body.reference : "";
   const code = typeof body.code === "string" ? body.code.trim() : "";
-  const intent = intents.get(reference);
+  const repo = await getRepo();
+  const intent = await repo.getPayment(reference);
 
   if (!intent) {
     return NextResponse.json(
@@ -34,7 +33,7 @@ export async function POST(request: Request) {
     );
   }
 
-  intents.set(reference, { ...intent, status: "succeeded", code: "succeeded", updatedAt: Date.now() });
+  await repo.updatePayment(reference, { status: "succeeded", code: "succeeded", updatedAt: Date.now() });
   return NextResponse.json({
     ok: true,
     status: "succeeded",

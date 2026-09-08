@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { ADMIN_COOKIE, checkPassword, createSessionToken, safeEqual, verifySessionToken } from "@/app/lib/server/admin-auth";
-import { db, resetDb } from "@/app/lib/server/db";
+import { getRepo, resetDb } from "@/app/lib/server/db";
 import { buildOverview } from "@/app/lib/server/admin-stats";
 import { matches, paginate, parseListQuery, toCsv } from "@/app/lib/server/admin-list";
 import { DELETE as logout, GET as sessionInfo, POST as login } from "@/app/api/admin/session/route";
@@ -35,7 +35,7 @@ async function adminCookie() {
 const asAdmin = async (url: string) => new Request(`http://local.test${url}`, { headers: await adminCookie() });
 
 async function seed() {
-  resetDb();
+  await resetDb();
   await book(json("/api/bookings", { name: "أحمد سمير", phone: "01099998888", goal: "تنشيف وتقسيم", slot: "٤ – ٨ بالليل", plan: "pro" }));
   await book(json("/api/bookings", { name: "منى خالد", phone: "01012345678", goal: "تخسيس وحرق دهون", slot: "٦ – ٩ الصبح", plan: "basic" }));
   await subscribe(
@@ -202,16 +202,16 @@ describe("GET /api/admin/overview — التجميع", () => {
     expect(o.sandbox).toBe(true);
   });
 
-  it("buildOverview على قاعدة فاضية مش بتكسر", () => {
-    resetDb();
-    const o = buildOverview();
+  it("buildOverview على قاعدة فاضية مش بتكسر", async () => {
+    await resetDb();
+    const o = await buildOverview();
     expect(o.revenue).toEqual({ total: 0, today: 0, week: 0, avgOrder: 0, vat: 0 });
     expect(o.orders.byPlan.every((p) => p.count === 0)).toBe(true);
     expect(o.daily.every((d) => d.revenue === 0)).toBe(true);
   });
 
-  it("سجل الدفع مبيخزّنش رقم الكارت — آخر 4 أرقام بس", () => {
-    for (const p of db.intents.values()) {
+  it("سجل الدفع مبيخزّنش رقم الكارت — آخر 4 أرقام بس", async () => {
+    for (const p of await (await getRepo()).listPayments()) {
       expect(JSON.stringify(p)).not.toContain("4242424242424242");
       expect(JSON.stringify(p)).not.toContain("4242 4242");
       if (p.method === "card") expect(p.last4).toMatch(/^\d{4}$/);
@@ -281,9 +281,10 @@ describe("قوائم الأدمن — بحث وفلترة وترقيم و CSV", 
   it("POST /api/admin/reset بيمسح كل حاجة", async () => {
     const res = await reset(new Request("http://local.test/api/admin/reset", { method: "POST", headers: await adminCookie() }));
     expect(res.status).toBe(200);
-    expect(db.orders).toHaveLength(0);
-    expect(db.bookings).toHaveLength(0);
-    expect(db.intents.size).toBe(0);
+    const repo = await getRepo();
+    expect(await repo.listOrders()).toHaveLength(0);
+    expect(await repo.listBookings()).toHaveLength(0);
+    expect(await repo.listPayments()).toHaveLength(0);
   });
 });
 
