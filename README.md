@@ -199,6 +199,8 @@ npm run db:seed      # (اختياري) بيانات ديمو عشان /admin ت
 في `/admin` هتلاقي شريط أخضر مكتوب فيه **«متوصّل بداتابيز — Supabase · postgres.js»** بدل شريط وضع التجربة. وللتأكد من ناحية Supabase: **Table Editor** ← `bookings` / `subscriptions` / `payments`.
 
 > 📘 عايز الخطوات بالتفصيل الممل (فين تدوس بالظبط + جدول أعطال كامل)؟ **[docs/SUPABASE-SETUP.md](docs/SUPABASE-SETUP.md)**
+>
+> 🅱️ **من غير أدوات محلية:** الزق **[`drizzle/supabase-setup.sql`](drizzle/supabase-setup.sql)** في **Supabase ← SQL Editor ← Run** — بيعمل الجداول *وبيسجّل المايجريشن* عند drizzle، و**[`drizzle/supabase-seed.sql`](drizzle/supabase-seed.sql)** بيانات ديمو اختيارية.
 
 > **ليه فيه وصلتين؟** الـ transaction pooler بيوزّع كل استعلام على كونكشن مختلف — أحسن حاجة للـ serverless،
 > بس مبيدعمش prepared statements ولا بعض أوامر الـ DDL. عشان كده الأدابتر بيبعت `prepare: false` و`max: 1`

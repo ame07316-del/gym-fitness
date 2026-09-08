@@ -4,17 +4,25 @@
  *
  * آمن للتكرار: كل الصفوف بمفاتيح ثابتة (`DEMO-…`) و`on conflict do update`،
  * فتشغيله ١٠ مرات = نفس الصفوف مش عشرة أضعاف.
- * ولمسحها: `npm run db:seed -- --clear`
+ *   `npm run db:seed -- --clear`  → يمسح صفوف DEMO- بس
+ *   `npm run db:seed -- --sql`    → يطبع الـ SQL بدل ما ينفّذه (للصق في Supabase SQL Editor)
  *
  * ⚠️ زي كل حاجة في المشروع: مفيش رقم كارت — آخر ٤ أرقام والشبكة بس.
  */
 import { c, connect, describeUrl, explainError, fail, info, ok, requireUrl } from "./lib/db-connect.mjs";
 
-const url = requireUrl("db:seed");
+const url = process.argv.includes("--sql") ? "postgresql://x:x@localhost:5432/x" : requireUrl("db:seed");
 const clear = process.argv.includes("--clear");
 const d = describeUrl(url);
 const DAY = 86_400_000;
-const at = (daysAgo, hour = 12) => new Date(Date.now() - daysAgo * DAY).toISOString().slice(0, 10) + `T${String(hour).padStart(2, "0")}:30:00Z`;
+
+/** التواريخ نسبية («من N يوم») عشان رسم آخر ٧ أيام يفضل مليان مهما اتشغّل إمتى */
+const daysAgoOf = new Map();
+const at = (daysAgo, hour = 12) => {
+  const iso = new Date(Date.now() - daysAgo * DAY).toISOString().slice(0, 10) + `T${String(hour).padStart(2, "0")}:30:00Z`;
+  daysAgoOf.set(iso, daysAgo);
+  return iso;
+};
 
 const bookings = [
   ["DEMO-BK-1", "أحمد سمير", "01099998888", "تنشيف وتقسيم", "٤ – ٨ بالليل", "برو", "confirmed", at(0, 11)],
@@ -42,6 +50,63 @@ const payments = [
   ["DEMO-pi-6", null, 700, "card", "requires_action", "mada", "1234", "requires_action", at(5, 14)],
   ["DEMO-pi-7", "DEMO-FZ-5", 500, "cash", "succeeded", "cash", null, "succeeded", at(6, 17)],
 ];
+
+/* ------------------------- وضع --sql (طباعة بس) ------------------------- */
+
+if (process.argv.includes("--sql")) {
+  const lit = (v) => (v === null || v === undefined ? "NULL" : typeof v === "number" ? String(v) : `'${String(v).replace(/'/g, "''")}'`);
+  const ts = (iso) => `now() - interval '${daysAgoOf.get(iso) ?? 0} days'`;
+  const out = [];
+
+  out.push(`-- =====================================================================
+-- FitZone Pro — بيانات ديمو للوحة /admin  (الزقها في Supabase ← SQL Editor ← Run)
+-- =====================================================================
+-- ٦ حجوزات · ٥ اشتراكات · ٧ مدفوعات موزّعة على آخر ٧ أيام (تواريخ نسبية).
+-- كل الصفوف مفاتيحها بادئة بـ DEMO- وآمنة للتكرار.
+-- للمسح:  delete from payments where reference like 'DEMO-%';
+--         delete from subscriptions where order_id like 'DEMO-%';
+--         delete from bookings where client_ref like 'DEMO-%';
+-- ⚠️ مفيش أرقام كروت هنا — آخر ٤ أرقام والشبكة بس، زي الإنتاج بالظبط.
+-- =====================================================================
+
+BEGIN;
+`);
+
+  for (const [ref, name, phone, goal, slot, plan, status, created] of bookings) {
+    out.push(`insert into bookings (client_ref, name, phone, goal, slot, plan, status, created_at) values
+  (${lit(ref)}, ${lit(name)}, ${lit(phone)}, ${lit(goal)}, ${lit(slot)}, ${lit(plan)}, ${lit(status)}::booking_status, ${ts(created)})
+  on conflict (client_ref) do update set status = excluded.status, created_at = excluded.created_at;`);
+  }
+
+  for (const [id, mName, mPhone, mGoal, planId, planName, cycle, months, addons, coupon, pay, total, perMonth, created, days, status] of subscriptions) {
+    out.push(`insert into subscriptions (order_id, member_name, member_phone, member_goal, plan_id, plan_name, cycle, months,
+  addon_ids, coupon, payment, total, per_month, starts_at, ends_at, status, auto_renew, created_at) values
+  (${lit(id)}, ${lit(mName)}, ${lit(mPhone)}, ${lit(mGoal)}, ${lit(planId)}, ${lit(planName)}, ${lit(cycle)}, ${months},
+   ${lit(JSON.stringify(addons))}::jsonb, ${lit(coupon)}, ${lit(pay)}, ${total}, ${perMonth},
+   ${ts(created)}, ${ts(created)} + interval '${days} days', ${lit(status)}::subscription_status, true, ${ts(created)})
+  on conflict (order_id) do update set total = excluded.total, addon_ids = excluded.addon_ids,
+   status = excluded.status, created_at = excluded.created_at;`);
+  }
+
+  for (const [ref, orderId, amount, method, status, brand, last4, code, created] of payments) {
+    out.push(`insert into payments (reference, order_id, amount, method, status, brand, last4, error_code, created_at, updated_at) values
+  (${lit(ref)}, ${lit(orderId)}, ${amount}, ${lit(method)}, ${lit(status)}::payment_status, ${lit(brand)}, ${lit(last4)}, ${lit(code)}, ${ts(created)}, ${ts(created)})
+  on conflict (reference) do update set status = excluded.status, created_at = excluded.created_at;`);
+  }
+
+  out.push(`
+COMMIT;
+
+-- للتأكد:
+--   select (select count(*) from bookings) as bookings,
+--          (select count(*) from subscriptions) as subscriptions,
+--          (select count(*) from payments) as payments;`);
+
+  console.log(out.join("\n\n"));
+  process.exit(0);
+}
+
+/* ------------------------------ التنفيذ ------------------------------ */
 
 const conn = await connect(url);
 try {

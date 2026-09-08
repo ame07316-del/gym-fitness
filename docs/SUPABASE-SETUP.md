@@ -108,6 +108,19 @@ DATABASE_URL='postgresql://postgres.abcdefghijklmnop:الباسورد@aws-0-eu-c
 
 ---
 
+### 🅱️ بديل الخطوة ٤ — من غير ما تشغّل أي حاجة على جهازك
+
+مش عايز/مش قادر تشغّل الأوامر محليًا (مفيش Node، أو الشبكة بتاعتك بتحجب بورت 5432)؟ اعمل الجداول من المتصفح:
+
+1. Supabase ← من القايمة الشمال **SQL Editor** ← **New query**.
+2. افتح ملف **[`drizzle/supabase-setup.sql`](../drizzle/supabase-setup.sql)** من الريبو ← انسخه **كله** ← الزقه.
+3. دوس **Run** (أو `Ctrl+Enter`). المفروض يقول **Success**.
+4. (اختياري) نفس الحكاية مع **[`drizzle/supabase-seed.sql`](../drizzle/supabase-seed.sql)** — بيانات ديمو لآخر ٧ أيام عشان `/admin` تبان مليانة.
+5. اتأكد: **Table Editor** ← لازم تلاقي `bookings` و`subscriptions` و`payments`.
+
+الملف ده مش بس بيعمل الجداول — كمان بيسجّل المايجريشن في `drizzle.__drizzle_migrations` بنفس الـ hash،
+يعني لو شغّلت `npm run db:migrate` بعد كده مش هيحاول يعملها تاني ولا هيقع بـ «already exists».
+
 ## الخطوة ٥ — اتأكد إن كله تمام
 
 ```bash
