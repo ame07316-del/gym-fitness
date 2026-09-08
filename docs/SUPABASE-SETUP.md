@@ -121,6 +121,21 @@ DATABASE_URL='postgresql://postgres.abcdefghijklmnop:الباسورد@aws-0-eu-c
 الملف ده مش بس بيعمل الجداول — كمان بيسجّل المايجريشن في `drizzle.__drizzle_migrations` بنفس الـ hash،
 يعني لو شغّلت `npm run db:migrate` بعد كده مش هيحاول يعملها تاني ولا هيقع بـ «already exists».
 
+### ⚠️ لو الداتابيز فيها جداول قديمة بنفس الأسماء
+
+لو `bookings` أو `subscriptions` موجودة قبل كده من أداة تانية (بأعمدة مختلفة)، ملف `supabase-setup.sql`
+**هيتخطاها** (لأنه `create table if not exists`) والموقع هيقع بعدين بـ `column does not exist`.
+
+الحل: الزق **[`drizzle/supabase-reinstall.sql`](../drizzle/supabase-reinstall.sql)** بدل ملف الإعداد — بيمسح
+الجداول التلاتة بتاعتنا (وأي view معتمد عليها) ويعملها من جديد بالسكيما الصح، **من غير ما يلمس أي جدول تاني**.
+
+اتأكد الأول إنها فاضية أو مش مهمة:
+
+```sql
+select 'bookings' t, count(*) from bookings
+union all select 'subscriptions', count(*) from subscriptions;
+```
+
 ## الخطوة ٥ — اتأكد إن كله تمام
 
 ```bash
