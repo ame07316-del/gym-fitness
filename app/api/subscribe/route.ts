@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { validateBooking } from "@/app/lib/server/validate";
 import { getRepo, type SubscribeRecord } from "@/app/lib/server/db";
+import { requireAdmin } from "@/app/lib/server/admin-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,9 @@ export async function POST(request: Request) {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const guard = await requireAdmin(request);
+  if (guard) return guard;
   const orders = await (await getRepo()).listOrders();
   const revenue = orders.reduce((s, o) => s + o.total, 0);
   return NextResponse.json({

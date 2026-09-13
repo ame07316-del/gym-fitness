@@ -29,6 +29,7 @@ export async function GET(request: Request) {
     authenticated: authed,
     enabled: adminEnabled(),
     devPassword: usingDevPassword() ? "admin123" : null,
+    isDevPassword: usingDevPassword(),
     sessionHours: SESSION_HOURS,
   });
 }

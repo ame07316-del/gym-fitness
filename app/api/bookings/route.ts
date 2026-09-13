@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRepo, type BookingRecord } from "@/app/lib/server/db";
 import { clean, validateBooking } from "@/app/lib/server/validate";
+import { requireAdmin } from "@/app/lib/server/admin-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,9 @@ export async function POST(request: Request) {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const guard = await requireAdmin(request);
+  if (guard) return guard;
   const store = await (await getRepo()).listBookings();
   return NextResponse.json({
     total: store.length,
