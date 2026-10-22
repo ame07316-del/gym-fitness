@@ -26,6 +26,7 @@ export type AdminOverview = {
 };
 
 const DAY = 86_400_000;
+const cents = (n: number) => Math.round(n * 100) / 100;
 const startOfDay = (ts: number) => {
   const d = new Date(ts);
   d.setHours(0, 0, 0, 0);
@@ -34,7 +35,8 @@ const startOfDay = (ts: number) => {
 
 const dayLabel = (ts: number) => new Intl.DateTimeFormat("ar-EG", { weekday: "short", day: "numeric" }).format(new Date(ts));
 
-const sandboxMode = () => (process.env.NEXT_PUBLIC_PAYMENT_PROVIDER ?? "sandbox") === "sandbox";
+// The built-in payment route is always simulated regardless of any provider label.
+const sandboxMode = () => true;
 
 const countBy = <T>(items: T[], pick: (t: T) => string | null | undefined) =>
   items.reduce<Record<string, number>>((m, it) => {
@@ -52,7 +54,7 @@ const toSorted = (rec: Record<string, number>) =>
 function mergePlans(rows: { id: string; name: string; count: number; revenue: number }[]) {
   const byPlan = PLANS.map((p) => {
     const hit = rows.filter((r) => r.id === p.id || r.name === p.name);
-    return { id: p.id, name: p.name, count: hit.reduce((s, r) => s + r.count, 0), revenue: hit.reduce((s, r) => s + r.revenue, 0) };
+    return { id: p.id, name: p.name, count: hit.reduce((s, r) => s + r.count, 0), revenue: cents(hit.reduce((s, r) => s + r.revenue, 0)) };
   });
   // أي باقة جاية من باك إند خارجي مش في PLANS تتحسب برضه (متجمّعة بنفس المفتاح)
   const extras = new Map<string, { id: string; name: string; count: number; revenue: number }>();
@@ -62,7 +64,7 @@ function mergePlans(rows: { id: string; name: string; count: number; revenue: nu
     const cur = extras.get(key);
     if (cur) {
       cur.count += r.count;
-      cur.revenue += r.revenue;
+      cur.revenue = cents(cur.revenue + r.revenue);
     } else {
       extras.set(key, { ...r });
     }
@@ -84,7 +86,7 @@ export function computeOverview(snap: DbSnapshot, now = Date.now()): AdminOvervi
   const today0 = startOfDay(now);
   const week0 = today0 - 6 * DAY;
 
-  const revenue = orders.reduce((s, o) => s + o.total, 0);
+  const revenue = cents(orders.reduce((s, o) => s + o.total, 0));
   const todayOrders = orders.filter((o) => o.createdAt >= today0);
   const weekOrders = orders.filter((o) => o.createdAt >= week0);
 
@@ -102,7 +104,7 @@ export function computeOverview(snap: DbSnapshot, now = Date.now()): AdminOvervi
     const dayOrders = orders.filter((o) => o.createdAt >= from && o.createdAt < to);
     return {
       day: dayLabel(from),
-      revenue: dayOrders.reduce((s, o) => s + o.total, 0),
+      revenue: cents(dayOrders.reduce((s, o) => s + o.total, 0)),
       orders: dayOrders.length,
       bookings: bookings.filter((b) => b.createdAt >= from && b.createdAt < to).length,
     };
@@ -116,11 +118,11 @@ export function computeOverview(snap: DbSnapshot, now = Date.now()): AdminOvervi
     sandbox: sandboxMode(),
     revenue: {
       total: revenue,
-      today: todayOrders.reduce((s, o) => s + o.total, 0),
-      week: weekOrders.reduce((s, o) => s + o.total, 0),
-      avgOrder: orders.length ? Math.round(revenue / orders.length) : 0,
+      today: cents(todayOrders.reduce((s, o) => s + o.total, 0)),
+      week: cents(weekOrders.reduce((s, o) => s + o.total, 0)),
+      avgOrder: orders.length ? cents(revenue / orders.length) : 0,
       // الإجمالي شامل 14% ض.ق.م — الضريبة = الإجمالي × 14/114
-      vat: Math.round((revenue * 14) / 114),
+      vat: cents((revenue * 14) / 114),
     },
     orders: {
       total: orders.length,
@@ -144,7 +146,7 @@ export function computeOverview(snap: DbSnapshot, now = Date.now()): AdminOvervi
       succeeded: succeeded.length,
       requiresAction: payments.filter((p) => p.status === "requires_action").length,
       failed: payments.filter((p) => p.status === "failed").length,
-      volume: succeeded.reduce((s, p) => s + p.amount, 0),
+      volume: cents(succeeded.reduce((s, p) => s + p.amount, 0)),
       declineCodes: toSorted(countBy(payments.filter((p) => p.status === "failed"), (p) => p.code)).map((d) => ({ code: d.key, count: d.count })),
       byBrand: countBy(payments.filter((p) => p.method === "card"), (p) => p.brand),
     },
@@ -202,8 +204,8 @@ export async function sqlOverview(client: SqlClient, bootedAt: number, now = Dat
           coalesce(sum(total), 0)::float8                                                      as revenue,
           coalesce(sum(total) filter (where created_at >= ${todayIso}::timestamptz), 0)::float8 as revenue_today,
           coalesce(sum(total) filter (where created_at >= ${weekIso}::timestamptz), 0)::float8  as revenue_week,
-          coalesce(round(avg(total)), 0)::int                                                  as avg_order,
-          coalesce(round(sum(total) * 14 / 114), 0)::int                                       as vat
+          coalesce(round(avg(total), 2), 0)::float8                                            as avg_order,
+          coalesce(round(sum(total) * 14 / 114, 2), 0)::float8                                 as vat
         from ${subs}
       `,
     ),
@@ -309,13 +311,13 @@ export async function sqlOverview(client: SqlClient, bootedAt: number, now = Dat
 
   const planRows = orderDims
     .filter((r) => text(r.dim) === "plan")
-    .map((r) => ({ id: text(r.key), name: text(r.label) || text(r.key), count: int(r.count), revenue: int(r.revenue) }));
+    .map((r) => ({ id: text(r.key), name: text(r.label) || text(r.key), count: int(r.count), revenue: cents(num(r.revenue)) }));
 
   const daily = Array.from({ length: 7 }, (_, i) => {
     const hit = dailyRows.find((r) => int(r.bucket) === i);
     return {
       day: dayLabel(week0 + i * DAY),
-      revenue: int(hit?.revenue),
+      revenue: cents(num(hit?.revenue)),
       orders: int(hit?.orders),
       bookings: int(hit?.bookings),
     };
@@ -326,11 +328,11 @@ export async function sqlOverview(client: SqlClient, bootedAt: number, now = Dat
     bootedAt,
     sandbox: sandboxMode(),
     revenue: {
-      total: int(o.revenue),
-      today: int(o.revenue_today),
-      week: int(o.revenue_week),
-      avgOrder: int(o.avg_order),
-      vat: int(o.vat),
+      total: cents(num(o.revenue)),
+      today: cents(num(o.revenue_today)),
+      week: cents(num(o.revenue_week)),
+      avgOrder: cents(num(o.avg_order)),
+      vat: cents(num(o.vat)),
     },
     orders: {
       total: int(o.total),
@@ -354,7 +356,7 @@ export async function sqlOverview(client: SqlClient, bootedAt: number, now = Dat
       succeeded: int(p.succeeded),
       requiresAction: int(p.requires_action),
       failed: int(p.failed),
-      volume: int(p.volume),
+      volume: cents(num(p.volume)),
       declineCodes: dimList(paymentDims, "code").map((d) => ({ code: d.key, count: d.count })),
       byBrand: dimMap(paymentDims, "brand"),
     },

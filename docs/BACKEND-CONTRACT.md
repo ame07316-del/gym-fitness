@@ -1,20 +1,20 @@
 # عقد الوصلة بين الفرونت والباك إند 🔌
 
-كل نداءات الواجهة بتعدي من ملف واحد: **`app/lib/api.ts`**. يعني مفيش `fetch` مبعثر في الكمبونents، ومفيش URL هتدوّر عليه.
+نداءات الحجز والاشتراك والدفع بتعدي من **`app/lib/api.ts`**؛ ولوحة الإدارة بتستعمل مساراتها المحلية من `app/admin/use-admin.ts`.
 
 ## 1) التفعيل (3 أسطر في ملف بيئة)
 
 ```bash
 # .env.local
-BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← الأنسب (من غير CORS)
-# BACKEND_ONLY=bookings,subscribe           # اختياري: البروكسي للمسارات دي بس
-# NEXT_PUBLIC_PAYMENT_PROVIDER=paymob       # لما تخلص شيت مفاتيح البوابة الحقيقية
+BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* عدا /api/admin/* (من غير CORS)
+# BACKEND_ONLY=bookings,subscribe,pay       # اختياري: البروكسي للمسارات دي بس
+# مفاتيح الدفع الحقيقية سيرفر فقط؛ تغيير NEXT_PUBLIC_PAYMENT_PROVIDER وحده مش بيشغّل بوابة
 ```
 
 | الوضع | اللي بيحصل |
 | --- | --- |
 | `BACKEND_URL` فاضي | الفرونت بيستخدم الـ Route Handlers المحلية (`app/api/*`) = وضع التجربة |
-| `BACKEND_URL` متظبوط | كل `/api/*` بيتحول للباك إند **قبل** ما Next يشوف الملفاته (`beforeFiles` في `next.config.ts`) |
+| `BACKEND_URL` متظبوط | كل `/api/*` **ما عدا `/api/admin/*`** بيتحول للباك إند قبل Route Handlers المحلية (`beforeFiles` في `next.config.ts`). لتحويل الأدمن كمان لازم تذكر `admin` صراحة في `BACKEND_ONLY` وتنفّذ نفس الجلسات عندك |
 | `NEXT_PUBLIC_API_BASE` متظبوط | المتصفح بيكلم الباك إند مباشرة → محتاج CORS عندك |
 
 ## 2) الـ endpoints المطلوبة (نفس شكل الردود الحالية)
@@ -45,20 +45,20 @@ BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← ال
 // 201
 { "ok": true, "order": { "orderId": "FZ-2026-K3JD22", "status": "active" }, "invoice": "INV-FZ-2026-K3JD22" }
 ```
-`GET /api/subscribe` → إحصائيات (`total`, `revenue`, `byPlan`) للداشبورد.
+`GET /api/subscribe` → إحصائيات (`total`, `revenue`, `byPlan`) للإدارة **بعد التحقق من جلسة الأدمن** (`401` بدونها). و`GET /api/bookings` كذلك محمي لأنه يحتوي بيانات شخصية.
 
 ### `POST /api/pay` — اعتماد عملية الدفع
 ```jsonc
 // request
 { "method": "card" | "wallet" | "install" | "cash", "amount": 2870,
   "card": { "number": "4242 4242 4242 4242", "exp": "12/29", "cvv": "123", "holder": "MAHMOUD ALI" },
-  "description": "FitZone Pro — باقة برو / ٣ شهور", "provider": "paymob" }
+  "description": "FitZone Pro — باقة برو / ٣ شهور" }
 
 // 200 — محتاج تحقق إضافي (3-D Secure)
 { "ok": true, "status": "requires_action", "reference": "pi_s1_xxx", "amount": 2870,
   "brand": "visa", "last4": "4242", "message": "البنك طلب تحقق إضافي (3-D Secure)", "provider": "paymob" }
 
-// 200 — خلص على طول (محفظة/تقسيط/كاش)
+// 200 — محاكاة نجاح فوري (مثل Mastercard التجريبي أو المحفظة/الكاش) — ليست حركة أموال حقيقية
 { "ok": true, "status": "succeeded", "reference": "pi_s1_xxx", "message": "…" }
 
 // 402 — رفض البنك
@@ -74,11 +74,11 @@ BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← ال
 // 404 → العملية مش موجودة / انتهت صلاحيتها
 ```
 
-**ثوابت لازم تتحافظ** (الواجهة بتقرا عليها): `ok`, `status` ∈ `succeeded|requires_action|failed`, `reference`, `message`, `amount`. وأي حاجة تانية تزوّدها (invoice id, gateway id, payment_url) بتوصل في `res.data` من غير ما تحتاج تعديل في الفرونت.
+**مهم:** الـ endpoints المدمجة Sandbox فقط حتى لو غيّرت `NEXT_PUBLIC_PAYMENT_PROVIDER`؛ الربط الحقيقي يحتاج تكامل سيرفر مع البوابة وتحقق من الدفع قبل تفعيل العضوية. **ثوابت الرد** (الواجهة بتقرا عليها): `ok`, `status` ∈ `succeeded|requires_action|failed`, `reference`, `message`, `amount`. وأي حقول زيادة بتوصل في `res.data`، لكن لو محتاج صفحة دفع مستضافة أو redirect للبوابة هتحتاج تنفيذ واجهتها برضه.
 
 ### لوحة الإدارة — `GET /api/admin/*` (محمية بكوكي جلسة)
 
-لو هتنقل الأدمن للباك إند بتاعك، دي المسارات اللي الواجهة في `app/admin/*` بتناديها. كلها بترجع `401 { error, code: "unauthorized" }` من غير جلسة.
+لو هتنقل الأدمن للباك إند بتاعك، دي المسارات اللي الواجهة في `app/admin/*` بتناديها. مسارات البيانات المحمية بترجع `401 { error, code: "unauthorized" }` من غير جلسة؛ `GET/POST /api/admin/session` متاحين للدخول وفحص حالة الجلسة.
 
 | المسار | الرد |
 | --- | --- |
@@ -89,14 +89,14 @@ BACKEND_URL=http://127.0.0.1:8000          # بروكسي لكل /api/* ← ال
 | `GET /api/admin/orders?q=&status=&page=&per=&format=csv` | `{ items, page, pages, per, total }` — أو ملف CSV لو `format=csv` |
 | `GET /api/admin/bookings?…` | نفس الشكل |
 | `GET /api/admin/payments?…` | نفس الشكل — كل عنصر `{ reference, amount, method, brand, last4, status, code, createdAt, updatedAt }` (**آخر ٤ أرقام بس**) |
-| `POST /api/admin/reset` | يمسح بيانات وضع التجربة — `403` لو مش sandbox |
+| `POST /api/admin/reset` | يمسح بيانات الذاكرة التجريبية فقط — `403` لو متوصل بـ Postgres (حتى لو بوابة الدفع Sandbox) |
 
-> **لو البروكسي شغال بـ `BACKEND_URL`:** استخدم `BACKEND_ONLY=bookings,subscribe,pay` عشان مسارات `/api/admin/*` تفضل على Next (اللي عنده الجلسة)، أو نفّذ نفس الجلسة عندك وخلي `proxy.ts` يعدّي الكوكي. الاختبارات في `tests/admin.test.ts` هي المواصفة.
+> **لو البروكسي شغال بـ `BACKEND_URL`:** `/api/admin/*` بتفضل محلية افتراضيًا. لو حطيت `admin` في `BACKEND_ONLY`، نفّذ نفس مصادقة الجلسة على الباك إند وتأكد من حماية البيانات. الاختبارات في `tests/admin.test.ts` هي المواصفة المحلية.
 
 ### قواعد الفيلدز المستخدمة في الواجهة
 - الاسم: `trim().length >= 3`
 - الموبايل: `/^(?:\+?2|002)?01[0-9]{9}$/` (المسافات والشرطات بتتشال الأول، و`+2`/`002` اختيارية)
-- القيمة: `total > 0` · `months` بين 1 و24 · `addonIds` مصفوفة ≤ 12 عنصر
+- القيمة: `total` للدفع/الاشتراك بين `0.01` و`99,999,999.99` جنيه وتُقرّب للفلس؛ `months` و`addonIds` بيتقيدوا إلى 1–24 و12 عنصر على الترتيب في الـ handler المحلي. في الإنتاج ارفض القيم غير المتوقعة وأعد حساب السعر من السيرفر
 - `code` للـ OTP: 6 أرقام
 
 ## 3) سكيل البوكسي في Laravel
@@ -129,9 +129,9 @@ public function store(Request $r) {
     ], 201);
 }
 ```
-فشل الفاليديشن في Laravel بيرجع `422 { message, errors: {...} }` — عشان الواجهة تقرأ `fields`، اربط `Handler` يعيد:
+فشل الفاليديشن في Laravel بيرجع `422 { message, errors: {...} }` والقيم جوا `errors` مصفوفات؛ الواجهة عايزة `fields` بقيم **نصية**، فحوّل كل قائمة لأول رسالة قبل ما ترجعها:
 ```php
-response()->json(['error' => 'بيانات ناقصة', 'fields' => $e->errors()], 422);
+response()->json(['error' => 'بيانات ناقصة', 'fields' => collect($e->errors())->map(fn ($messages) => $messages[0])->all()], 422);
 ```
 
 ### سكيل الجدول (MySQL — لو باك إندك Laravel)
@@ -177,7 +177,7 @@ create table payments (
 - **idempotency**: الواجهة بتبعت `orderId`/`id` ثابت — استخدمه كمفتاح فريد عشان لو الطلب اتعمل مرتين (ضعف شبكة) ميتعملش مزدوج.
   (الريبو بيعمل كده بـ `insert … on conflict (client_ref|order_id|reference) do update` — شوف `app/lib/server/db/postgres.ts`.)
 - **idempotent OTP**: لو `reference` اتأكدت قبل كده، ارجع `succeeded` تاني بدل 404.
-- **الأسعار**: الحساب كله في الفرونت (`app/lib/subscription.ts`). في الإنتاج لازم **إعادة حساب الـ total سيرفرًا** وتطابقه، ومتقبلش رقم العميل.
+- **الأسعار والدفع**: الحساب كله في الفرونت (`app/lib/subscription.ts`) والـ sandbox المحلي يقبل بيانات الاشتراك بعد التحقق الأساسي فقط. في الإنتاج لازم **إعادة حساب الـ total سيرفرًا** والتحقق من عملية دفع حقيقية مرتبطة بـ `orderId` قبل التفعيل؛ متقبلش حالة دفع أو قيمة من العميل كإثبات.
 
 ## 5) اتأكد إن الباك إند بتاعك متوافق في 10 ثواني
 ```bash
@@ -191,7 +191,7 @@ curl -s -X POST $BACKEND/api/pay -H 'Content-Type: application/json' \
 
 ## 6) المرجع الرسمي للسلوك: اختبارات الفرونت نفسها
 
-في `tests/api-contract.test.ts` فيه 49 assertion بينادوا الـ route handlers المحلية ويأكدوا
+في `tests/api-contract.test.ts` اختبارات بتنادي الـ route handlers المحلية وبتأكد
 كل حالة في العقد (201 تأكيد الحجز، 422 بـ `fields`، 402 رفض بنك، 401 OTP غلط، 404 مرجع
 مش موجود، 422 من غير `amount`). يعني:
 
@@ -201,6 +201,6 @@ curl -s -X POST $BACKEND/api/pay -H 'Content-Type: application/json' \
 - `npm test` في الريبو ده شغال في CI (`typecheck → lint → vitest → build`)، فمفيش احتمال
   العقد يتكسر من غير ما حد ياخد باله.
 
-> للتشغيل اليدوي قدام باك إندك: `BACKEND_URL=http://127.0.0.1:8000 node scripts/mock-backend.mjs`
-> بيديك ردود مطابقة للعقد من غير داتابيز — حط `BACKEND_URL` بتاعك على نفس البورت وقارن.
+> للتشغيل اليدوي: شغّل `node scripts/mock-backend.mjs`، وفي نافذة تانية شغّل `BACKEND_URL=http://127.0.0.1:8000 npm run dev`.
+> السيرفر الوهمي بيديك ردود للعقد من غير داتابيز؛ لما تستبدله بباك إندك، اختبر نفس المسارات.
 

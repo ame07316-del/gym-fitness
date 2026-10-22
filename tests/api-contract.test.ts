@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { POST as book } from "@/app/api/bookings/route";
 import { validateBooking } from "@/app/lib/server/validate";
 import { POST as subscribe } from "@/app/api/subscribe/route";
 import { GET as payHealth, POST as pay } from "@/app/api/pay/route";
 import { POST as confirm } from "@/app/api/pay/confirm/route";
 import { isEGPhone } from "@/app/lib/utils";
+import { getRepo } from "@/app/lib/server/db";
+import { buildOverview } from "@/app/lib/server/admin-stats";
 
 /**
  * اختبارات العقد (docs/BACKEND-CONTRACT.md) على الهاندلرات المحلية نفسها —
@@ -55,9 +57,9 @@ describe("POST /api/bookings", () => {
     expect(Object.keys(body.fields).sort()).toEqual(["name", "phone"]);
   });
 
-  it("body مش JSON → 400 مش كراش", async () => {
-    const res = await book(post("{ليس json"));
-    expect(res.status).toBe(400);
+  it("body مش JSON أو null → 400 مش كراش", async () => {
+    expect((await book(post("{ليس json"))).status).toBe(400);
+    expect((await book(post(null))).status).toBe(400);
   });
 });
 
@@ -96,6 +98,17 @@ describe("POST /api/subscribe", () => {
   it("422 على إجمالي مش منطقي", async () => {
     expect((await subscribe(post({ ...order, total: 0 }))).status).toBe(422);
     expect((await subscribe(post({ ...order, total: -50 }))).status).toBe(422);
+    expect((await subscribe(post({ ...order, total: 0.001 }))).status).toBe(422);
+    expect((await subscribe(post({ ...order, total: 100_000_000 }))).status).toBe(422);
+  });
+
+  it("بيرفض null وبيحتفظ بالقرش في المبلغ المحفوظ", async () => {
+    expect((await subscribe(post(null))).status).toBe(400);
+    const res = await subscribe(post({ ...order, orderId: "FZ-PIASTERS", total: 9603.36, perMonth: 800.28 }));
+    expect(res.status).toBe(201);
+    const { order: saved } = await res.json();
+    expect(saved.total).toBe(9603.36);
+    expect(saved.perMonth).toBe(800.28);
   });
 });
 
@@ -138,8 +151,20 @@ describe("POST /api/pay — سلوك البوابة", () => {
     expect(cash.message).toContain("48");
   });
 
-  it("من غير amount → 422", async () => {
+  it("Mastercard التجريبي بينجح مباشرة وبيحفظ القروش، ومينفعش طريقة دفع وهمية", async () => {
+    const res = await pay(post({ method: "card", amount: 9603.36, card: { number: "5555 5555 5555 4444" } }));
+    const body = await res.json();
+    expect(body.status).toBe("succeeded");
+    expect(body.amount).toBe(9603.36);
+    expect((await (await getRepo()).getPayment(body.reference))?.amount).toBe(9603.36);
+    expect((await pay(post({ method: "not-a-payment-method", amount: 100 }))).status).toBe(422);
+    expect((await pay(post(null))).status).toBe(400);
+  });
+
+  it("من غير amount أو قيمة أصغر من قرش / أكبر من سعة الداتابيز → 422", async () => {
     expect((await pay(post({ method: "card", card: { number: "4242424242424242" } }))).status).toBe(422);
+    expect((await pay(post({ method: "card", amount: 0.001 }))).status).toBe(422);
+    expect((await pay(post({ method: "card", amount: 100_000_000 }))).status).toBe(422);
   });
 
   it("GET /api/pay = health بيقول sandbox", async () => {
@@ -147,11 +172,25 @@ describe("POST /api/pay — سلوك البوابة", () => {
     expect(body.sandbox).toBe(true);
     expect(body.provider).toBe("sandbox");
   });
+
+  it("تغيير اسم provider في البيئة ما يدعيش وجود بوابة حقيقية", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PAYMENT_PROVIDER", "paymob");
+    try {
+      const payment = await (await pay(post({ method: "card", amount: 1, card: { number: "4242424242424242" } }))).json();
+      const confirmed = await (await confirm(post({ reference: payment.reference, code: "123456" }))).json();
+      expect(payment.provider).toBe("sandbox");
+      expect(confirmed.provider).toBe("sandbox");
+      expect((await (await payHealth()).json()).sandbox).toBe(true);
+      expect((await buildOverview()).sandbox).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
 
 describe("POST /api/pay/confirm — خطوة الـ OTP", () => {
   const begin = async () => {
-    const body = await (await pay(post({ method: "card", amount: 2870, card: { number: "5555 5555 5555 4444" } }))).json();
+    const body = await (await pay(post({ method: "card", amount: 2870, card: { number: "4242 4242 4242 4242" } }))).json();
     return body.reference as string;
   };
 
@@ -176,5 +215,17 @@ describe("POST /api/pay/confirm — خطوة الـ OTP", () => {
     const res = await confirm(post({ reference: "pi_s1_مفبرك", code: "123456" }));
     expect(res.status).toBe(404);
     expect((await res.json()).message).toContain("من جديد");
+  });
+
+  it("رمز صح لا يحوّل عملية بنك مرفوضة إلى ناجحة", async () => {
+    const declined = await (await pay(post({ method: "card", amount: 100, card: { number: "4000 0000 0000 0002" } }))).json();
+    const res = await confirm(post({ reference: declined.reference, code: "123456" }));
+    expect(res.status).toBe(402);
+    expect((await res.json()).status).toBe("failed");
+    expect((await (await getRepo()).getPayment(declined.reference))?.status).toBe("failed");
+  });
+
+  it("null مش بيكراش تأكيد رمز الدفع", async () => {
+    expect((await confirm(post(null))).status).toBe(400);
   });
 });

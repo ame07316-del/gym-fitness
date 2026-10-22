@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ADMIN_COOKIE, adminEnabled, checkPassword, cookieOptions, createSessionToken, SESSION_HOURS, usingDevPassword } from "@/app/lib/server/admin-auth";
 import { clientIp, isAdminRequest } from "@/app/lib/server/admin-guard";
+import { readJsonObject } from "@/app/lib/server/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -49,12 +50,8 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "JSON غير صالح" }, { status: 400 });
-  }
+  const body = await readJsonObject(request);
+  if (!body) return NextResponse.json({ error: "JSON غير صالح" }, { status: 400 });
 
   const password = typeof body.password === "string" ? body.password : "";
   if (!password) {

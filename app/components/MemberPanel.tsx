@@ -18,7 +18,7 @@ import { useToast } from "@/app/components/ui/Toast";
 export default function MemberPanel() {
   const {
     panelOpen, setPanelOpen, membership, daysLeft, progress, memberUiReady,
-    renew, toggleFreeze, cancelMembership, setAutoRenew, myClasses, toggleClass, bookings, removeBooking, favorites,
+    renew, toggleFreeze, cancelMembership, setAutoRenew, myClasses, waitlist, toggleClass, toggleWaitlist, bookings, removeBooking, favorites,
   } = useGym();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -46,15 +46,17 @@ export default function MemberPanel() {
   };
 
   const mySchedule = useMemo(() => {
-    const out: { key: string; day: string; time: string; name: string; trainer: string }[] = [];
+    const out: { key: string; day: string; time: string; name: string; trainer: string; waiting: boolean }[] = [];
     SCHEDULE.forEach((d, di) =>
       d.classes.forEach((c) => {
         const key = `${di}|${c.time}`;
-        if (myClasses.includes(key)) out.push({ key, day: d.day, time: c.time, name: c.name, trainer: c.trainer });
+        if (myClasses.includes(key) || waitlist.includes(key)) {
+          out.push({ key, day: d.day, time: c.time, name: c.name, trainer: c.trainer, waiting: !myClasses.includes(key) });
+        }
       }),
     );
     return out;
-  }, [myClasses]);
+  }, [myClasses, waitlist]);
 
   return (
     <Drawer open={panelOpen} onClose={() => setPanelOpen(false)} title="عضويتي">
@@ -231,7 +233,7 @@ export default function MemberPanel() {
             </a>
           </div>
 
-          {membership.status !== "cancelled" && (
+          {membership.autoRenew && membership.status !== "expired" && (
             <button
               onClick={cancelMembership}
               className="w-full rounded-xl border border-brand/25 py-2.5 text-xs font-bold text-brand-soft/80 transition hover:bg-brand/10"
@@ -267,10 +269,11 @@ export default function MemberPanel() {
                   <p className="truncate text-sm font-bold">{c.name}</p>
                   <p className="text-[11px] text-white/45">
                     {c.day} · {c.time} · الكابتن {c.trainer}
+                    {c.waiting && <span className="mr-1 font-bold text-gold">· قائمة انتظار</span>}
                   </p>
                 </div>
                 <button
-                  onClick={() => toggleClass(c.key, c.name)}
+                  onClick={() => c.waiting ? toggleWaitlist(c.key, c.name) : toggleClass(c.key, c.name)}
                   aria-label={`إلغاء ${c.name}`}
                   className="rounded-lg border border-line p-2 text-white/40 transition hover:border-brand/50 hover:text-brand-soft"
                 >
@@ -319,8 +322,8 @@ export default function MemberPanel() {
                   <button
                     onClick={() => removeBooking(b.id)}
                     className="rounded-lg border border-line px-2.5 py-1.5 text-[11px] font-bold text-white/50 transition hover:border-brand/50 hover:text-brand-soft"
-                  >
-                    حذف
+                    >
+                    حذف من جهازي
                   </button>
                 </div>
               </div>

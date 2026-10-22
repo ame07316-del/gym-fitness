@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addMonths, cardPattern, findCycle, findPlan, matchCoupon, quoteOf } from "@/app/lib/subscription";
+import { egp } from "@/app/lib/utils";
 
 /**
  * اختبارات محرك الأسعار — دي أهم حاجة في المشروع كله، فأي تعديل في
@@ -32,6 +33,8 @@ describe("الأساسيات", () => {
     expect(q.total).toBeCloseTo(9603.36, 2);
     expect(q.saved).toBeGreaterThan(2000);
     expect(q.savedPct).toBeGreaterThan(0.2); // الخصم بيتقرب من 22%
+    expect(egp(q.total)).toBe(`${new Intl.NumberFormat("ar-EG", { minimumFractionDigits: 2 }).format(9603.36)} ج.م`);
+    expect(egp(570)).toBe(`${new Intl.NumberFormat("ar-EG").format(570)} ج.م`);
   });
 
   it("الإضافات بتتحسب لكل شهر في مدة الاشتراك", () => {

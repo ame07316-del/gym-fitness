@@ -140,6 +140,7 @@ describe("POST /api/admin/session — الدخول والخروج", () => {
     expect((await login(json("/api/admin/session", { password: "" }, { headers: { "x-forwarded-for": "10.0.0.4" } }))).status).toBe(422);
     const bad = new Request("http://local.test/api/admin/session", { method: "POST", body: "{nope", headers: { "content-type": "application/json", "x-forwarded-for": "10.0.0.5" } });
     expect((await login(bad)).status).toBe(400);
+    expect((await login(json("/api/admin/session", null, { headers: { "x-forwarded-for": "10.0.0.6" } }))).status).toBe(400);
   });
 
   it("GET بيقول authenticated حسب الكوكي، و DELETE بيمسحها", async () => {
@@ -178,7 +179,7 @@ describe("GET /api/admin/overview — التجميع", () => {
     expect(o.orders.total).toBe(2);
     expect(o.revenue.total).toBe(17870);
     expect(o.revenue.avgOrder).toBe(8935);
-    expect(o.revenue.vat).toBe(Math.round((17870 * 14) / 114));
+    expect(o.revenue.vat).toBe(2194.56);
     expect(o.orders.byPlan.find((p: { id: string }) => p.id === "pro")).toMatchObject({ count: 1, revenue: 2870 });
     expect(o.orders.byPlan.find((p: { id: string }) => p.id === "vip")).toMatchObject({ count: 1, revenue: 15000 });
     expect(o.orders.byCycle).toEqual({ quarterly: 1, yearly: 1 });
