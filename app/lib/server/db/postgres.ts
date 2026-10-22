@@ -23,7 +23,7 @@ type PaymentRow = typeof payments.$inferSelect;
 /** قص النص على طول العمود — عشان مدخل طويل من باك إند خارجي ميرميش 500 */
 const cut = (v: string | null | undefined, max: number) => (v == null ? null : v.slice(0, max) || null);
 const cutReq = (v: string, max: number) => v.slice(0, max);
-const money = (v: string | number | null) => (v == null ? 0 : Math.round(Number(v)));
+const money = (v: string | number | null) => (v == null ? 0 : Math.round(Number(v) * 100) / 100);
 const ms = (d: Date | null) => (d ? d.getTime() : 0);
 
 const BOOKING_STATUSES = ["pending", "confirmed", "cancelled"] as const;

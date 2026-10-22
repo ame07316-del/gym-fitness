@@ -38,8 +38,7 @@ export default function Overview() {
   const onDb = data?.storage?.kind === "postgres";
 
   const wipe = async () => {
-    const where = onDb ? `من الداتابيز (${data?.storage?.label}) — الصفوف بتتمسح فعلًا` : "من ذاكرة السيرفر";
-    if (!window.confirm(`هتمسح كل الاشتراكات والحجوزات والمدفوعات ${where}. متأكد؟`)) return;
+    if (!window.confirm("هتمسح كل الاشتراكات والحجوزات والمدفوعات من ذاكرة السيرفر التجريبية. متأكد؟")) return;
     setWiping(true);
     const res = await apiFetch(ENDPOINTS.adminReset, { method: "POST" });
     setWiping(false);
@@ -61,7 +60,7 @@ export default function Overview() {
             <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
             <span className="hidden sm:inline">تحديث</span>
           </button>
-          {d?.sandbox && (
+          {d?.storage?.kind === "memory" && (
             <button onClick={wipe} disabled={wiping} className="inline-flex items-center gap-1.5 rounded-xl border border-brand/30 bg-brand/10 px-3 py-2 text-xs font-bold text-brand-soft transition hover:bg-brand/20 disabled:opacity-50">
               {wiping ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               <span className="hidden sm:inline">مسح بيانات التجربة</span>

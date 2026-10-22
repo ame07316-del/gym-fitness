@@ -105,8 +105,8 @@ export type Repo = {
 
 /** رابط الداتابيز: `DATABASE_URL` (أو `POSTGRES_URL` اللي Neon/Vercel بيحطه) */
 export function databaseUrl() {
-  const url = (process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? "").trim();
-  return url;
+  // An explicitly empty DATABASE_URL (for example from .env.example) must not mask POSTGRES_URL.
+  return process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim() || "";
 }
 
 /** هل إحنا شغالين على داتابيز حقيقية؟ (بيتعرض في `/api/admin/overview` والـ README) */

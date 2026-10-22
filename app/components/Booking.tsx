@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { GYM, GOALS, PLANS, TIME_SLOTS } from "@/app/lib/data";
 import { cx, isEGPhone } from "@/app/lib/utils";
+import { bookingFollowUpReminder } from "@/app/lib/calendar";
 import { useGym } from "@/app/lib/store";
 import { Reveal, SectionTitle } from "@/app/components/ui/Bits";
 import { useToast } from "@/app/components/ui/Toast";
@@ -19,8 +20,9 @@ export default function Booking() {
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
-  const [done, setDone] = useState<null | { id: string }>(null);
+  const [done, setDone] = useState<null | { id: string; waText: string }>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const onPrefill = (e: Event) => {
@@ -61,9 +63,11 @@ export default function Booking() {
 
   const submit = async (ev: React.FormEvent) => {
     ev.preventDefault();
+    if (sending) return;
     if (!validate()) {
       toast({ kind: "error", title: "راجع البيانات", body: "الاسم أو رقم الموبايل غير صحيح." });
-      if (errors.name) nameRef.current?.focus();
+      if (form.name.trim().length < 3) nameRef.current?.focus();
+      else phoneRef.current?.focus();
       return;
     }
     setSending(true);
@@ -73,40 +77,24 @@ export default function Booking() {
       goal: form.goal,
       slot: TIME_SLOTS.find((t) => t.id === form.slot)?.label ?? "أي وقت",
       plan: PLANS.find((p) => p.id === form.plan)?.name ?? "برو",
-    });
+    }, (fields) => setErrors(fields));
     setSending(false);
     if (rec) {
-      setDone({ id: rec.id });
+      // Keep the original details for WhatsApp after resetting the form for another booking.
+      setDone({ id: rec.id, waText });
       setForm(EMPTY);
     }
   };
 
   const downloadIcs = () => {
-    const d = new Date();
-    d.setHours(18, 0, 0, 0);
-    const stamp = (x: Date) => x.toISOString().replace(/[-:]\d{2}\.\d{3}Z$/, "").replace(/[-]/g, "");
-    const ics = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//FitZone Pro//Trial Session//AR",
-      "BEGIN:VEVENT",
-      `UID:${done?.id ?? "fz"}@fitzone.pro`,
-      `DTSTAMP:${stamp(new Date())}`,
-      `DTSTART:${stamp(d)}`,
-      `DTEND:${stamp(new Date(d.getTime() + 90 * 60000))}`,
-      "SUMMARY:جلسة تجريبية FitZone Pro",
-      `DESCRIPTION:كود الحجز ${done?.id ?? ""}`,
-      `LOCATION:${GYM.address}`,
-      "END:VEVENT",
-      "END:VCALENDAR",
-    ].join("\r\n");
-    const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
+    if (!done) return;
+    const url = URL.createObjectURL(new Blob([bookingFollowUpReminder(done.id)], { type: "text/calendar;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
     a.download = `fitzone-trial-${done?.id ?? ""}.ics`;
     a.click();
     URL.revokeObjectURL(url);
-    toast({ kind: "success", title: "اتنزّل التقويم", body: "افتح الملف عشان تضيف الجلسة لتقويمك." });
+    toast({ kind: "info", title: "اتنزّل تذكير المتابعة", body: "ده تذكير للاتصال بالجيم، مش موعد جلسة مؤكد." });
   };
 
   return (
@@ -173,9 +161,9 @@ export default function Booking() {
                     </p>
                     <div className="mt-6 flex flex-wrap justify-center gap-2">
                       <button onClick={downloadIcs} className="flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-xs font-black transition hover:bg-brand-soft">
-                        <Download className="h-4 w-4" /> أضف للتقويم
+                        <Download className="h-4 w-4" /> ذكّرني أتابع الحجز
                       </button>
-                      <a href={`https://wa.me/${GYM.whatsapp}?text=${waText}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-xl border border-line bg-white/5 px-4 py-2.5 text-xs font-bold transition hover:bg-white/10">
+                      <a href={`https://wa.me/${GYM.whatsapp}?text=${done.waText}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-xl border border-line bg-white/5 px-4 py-2.5 text-xs font-bold transition hover:bg-white/10">
                         <Phone className="h-4 w-4 text-mint" /> تابع على واتساب
                       </a>
                       <button onClick={() => setDone(null)} className="flex items-center gap-2 rounded-xl border border-line px-4 py-2.5 text-xs font-bold text-white/60 transition hover:text-white">
@@ -206,6 +194,7 @@ export default function Booking() {
                       </Field>
                       <Field label="موبايل / واتساب" error={errors.phone}>
                         <input
+                          ref={phoneRef}
                           value={form.phone}
                           onChange={(e) => set("phone", e.target.value)}
                           aria-invalid={!!errors.phone}

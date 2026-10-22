@@ -1,8 +1,10 @@
 export const cx = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(" ");
 
-/** تنسيق سعر بالم جنيه مصري */
-export const egp = (n: number) =>
-  new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 0 }).format(Math.round(n)) + " ج.م";
+/** عرض نفس المبلغ اللي بيتبعت للدفع — من غير إخفاء القروش في الأسعار الكسرية. */
+export const egp = (n: number) => {
+  const amount = Math.round(n * 100) / 100;
+  return new Intl.NumberFormat("ar-EG", { minimumFractionDigits: Number.isInteger(amount) ? 0 : 2, maximumFractionDigits: 2 }).format(amount) + " ج.م";
+};
 
 export const number = (n: number) => new Intl.NumberFormat("en-US").format(Math.round(n));
 

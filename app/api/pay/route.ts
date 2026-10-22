@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRepo, type PaymentIntent } from "@/app/lib/server/db";
+import { readJsonObject } from "@/app/lib/server/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,8 @@ export const dynamic = "force-dynamic";
  * سجل العمليات بيتخزّن في جدول `payments` (أو الذاكرة) من خلال `app/lib/server/db.ts` —
  * نفس المصدر اللي `/api/pay/confirm` ولوحة الإدارة بيقروا منه.
  */
-const PROVIDER = process.env.NEXT_PUBLIC_PAYMENT_PROVIDER ?? "sandbox";
+// Never report a real provider: this built-in endpoint only simulates payments.
+const PROVIDER = "sandbox";
 
 const digits = (v: unknown) => (typeof v === "string" ? v.replace(/\D/g, "") : "");
 
@@ -33,10 +35,10 @@ function luhnValid(n: string) {
 }
 
 function brandOf(n: string) {
+  if (/^(5080|5043|9201|5852|4292)/.test(n)) return "mada";
   if (/^4/.test(n)) return "visa";
   if (/^(5[1-5]|2[2-7])/.test(n)) return "mastercard";
   if (/^3[47]/.test(n)) return "amex";
-  if (/^(5080|5043|9201|5852|4292)/.test(n)) return "mada";
   return "unknown";
 }
 
@@ -50,18 +52,17 @@ const DECLINES: Record<string, string> = {
 const pretty = (n: string) => n.slice(-4);
 
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "JSON غير صالح" }, { status: 400 });
-  }
+  const body = await readJsonObject(request);
+  if (!body) return NextResponse.json({ error: "JSON غير صالح" }, { status: 400 });
 
   const method = typeof body.method === "string" ? body.method : "card";
-  const amount = Number(body.amount);
-  if (!Number.isFinite(amount) || amount <= 0) {
+  if (!["card", "wallet", "install", "cash"].includes(method)) {
+    return NextResponse.json({ error: "طريقة الدفع غير صالحة" }, { status: 422 });
+  }
+  if (typeof body.amount !== "number" || !Number.isFinite(body.amount) || body.amount < 0.01 || body.amount > 99_999_999.99) {
     return NextResponse.json({ error: "قيمة غير صالحة" }, { status: 422 });
   }
+  const amount = Math.round(body.amount * 100) / 100;
 
   const reference = `pi_s1_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
   const card = (body.card ?? {}) as Record<string, unknown>;
@@ -89,6 +90,8 @@ export async function POST(request: Request) {
     status = "failed";
     code = "invalid_number";
     message = "رقم البطاقة غير صحيح — فشل فحص Luhn";
+  } else if (n === "5555555555554444") {
+    message = "تم اعتماد بطاقة Mastercard التجريبية مباشرة";
   } else {
     status = "requires_action";
     code = "requires_action";

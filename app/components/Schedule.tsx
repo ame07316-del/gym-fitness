@@ -12,7 +12,7 @@ import { Chip, Reveal, SectionTitle } from "@/app/components/ui/Bits";
 const INTENSITY = { 1: "خفيف", 2: "متوسط", 3: "عالي" } as const;
 
 export default function Schedule() {
-  const { myClasses, toggleClass, seats, bookSeat } = useGym();
+  const { myClasses, waitlist, toggleClass, toggleWaitlist, seats, bookSeat } = useGym();
   const { weekday } = useClock();
   const todayIdx = Math.max(0, SCHEDULE.findIndex((d) => d.en === weekday));
   const [picked, setPicked] = useState<number | null>(null);
@@ -32,7 +32,7 @@ export default function Schedule() {
               جدول الكلاسات <span className="text-brand-soft">الأسبوعي</span>
             </>
           }
-          sub="احجز مكانك من الويب والمكان يتحفظ في جدولك — تقدر تشيله أو ترجعله في أي وقت من «عضويتي»."
+          sub="جرّب حجز الكلاسات من جهازك وشوفها في «عضويتي» — الحجز النهائي بيتأكد من الفرع قبل الموعد."
         />
 
         <Reveal className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -88,6 +88,7 @@ export default function Schedule() {
               const taken = Math.min(cls.capacity, cls.taken + delta);
               const left = cls.capacity - taken;
               const mine = myClasses.includes(key);
+              const waiting = waitlist.includes(key);
               const pct = (taken / cls.capacity) * 100;
               const full = left <= 0;
 
@@ -162,14 +163,14 @@ export default function Schedule() {
                         </button>
                       ) : (
                         <button
-                          onClick={() => (full ? toggleClass(key, cls.name) : bookSeat(key, `${cls.name} · ${cls.time}`))}
+                          onClick={() => (waiting || full ? toggleWaitlist(key, cls.name) : bookSeat(key, `${cls.name} · ${cls.time}`))}
                           className={cx(
                             "flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-black transition active:scale-95",
-                            full ? "border border-line bg-white/5 text-gold hover:bg-white/10" : "bg-brand text-white hover:bg-brand-soft",
+                            full || waiting ? "border border-line bg-white/5 text-gold hover:bg-white/10" : "bg-brand text-white hover:bg-brand-soft",
                           )}
                         >
-                          {full ? <CalendarPlus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-                          {full ? "قائمة انتظار" : "احجز مكاني"}
+                          {waiting ? <Trash2 className="h-3.5 w-3.5" /> : full ? <CalendarPlus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                          {waiting ? "في الانتظار" : full ? "قائمة انتظار" : "احجز مكاني"}
                         </button>
                       )}
                     </div>
@@ -183,7 +184,7 @@ export default function Schedule() {
         <Reveal delay={0.1} className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface/40 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <Chip tone="mint">
-              <Check className="h-3 w-3" /> حجز من الويب = مكان مضمون
+              <Check className="h-3 w-3" /> الحجز التجريبي محفوظ على جهازك
             </Chip>
             <Chip tone="gold">
               <Flame className="h-3 w-3" /> الكلاسات اللي بتخلص بيوم قبل الموعد
@@ -191,7 +192,8 @@ export default function Schedule() {
           </div>
           <p className="text-xs text-white/45">
             عندك <span className="num font-black text-white">{myClasses.length}</span> كلاس في جدولك
-            {myClasses.length > 0 && <span> · اتشال من «عضويتي»</span>}
+            {waitlist.length > 0 && <span> · {waitlist.length} في الانتظار</span>}
+            {myClasses.length > 0 && <span> · تقدر تشيلهم من «عضويتي»</span>}
           </p>
         </Reveal>
       </div>

@@ -1,10 +1,10 @@
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { computeOverview, sqlOverview, buildOverview } from "@/app/lib/server/admin-stats";
-import { setRepo, type BookingRecord, type PaymentIntent, type Repo, type SqlClient, type SubscribeRecord } from "@/app/lib/server/db";
+import { databaseUrl, setRepo, type BookingRecord, type PaymentIntent, type Repo, type SqlClient, type SubscribeRecord } from "@/app/lib/server/db";
 import { createMemoryRepo } from "@/app/lib/server/db/memory";
 import { createPostgresRepo, pickDriver, postgresJsOptions } from "@/app/lib/server/db/postgres";
 import { POST as book } from "@/app/api/bookings/route";
@@ -13,6 +13,7 @@ import { POST as pay } from "@/app/api/pay/route";
 import { POST as confirm } from "@/app/api/pay/confirm/route";
 import { GET as adminOrders } from "@/app/api/admin/orders/route";
 import { GET as adminPayments } from "@/app/api/admin/payments/route";
+import { POST as adminReset } from "@/app/api/admin/reset/route";
 import { ADMIN_COOKIE, createSessionToken } from "@/app/lib/server/admin-auth";
 
 /**
@@ -160,6 +161,21 @@ describe("أدابتر Postgres — الاشتراكات", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].total).toBe(3000);
   });
+
+  it("القروش بتفضل متطابقة في Postgres ولوحة الإدارة ومدفوعاتها", async () => {
+    const sub = order({ total: 9603.36, perMonth: 800.28 });
+    const paid = intent({ amount: 9603.36, status: "succeeded", code: "succeeded" });
+    expect((await repo.addOrder(sub)).total).toBe(9603.36);
+    expect((await repo.addPayment(paid)).amount).toBe(9603.36);
+    expect((await repo.listOrders())[0].perMonth).toBe(800.28);
+    expect((await repo.getPayment(paid.reference))?.amount).toBe(9603.36);
+
+    const sqlStats = await sqlOverview(client, NOW, NOW);
+    const memoryStats = computeOverview({ bookings: [], orders: [sub], payments: [paid], bootedAt: NOW }, NOW);
+    expect(sqlStats).toEqual(memoryStats);
+    expect(sqlStats.revenue.total).toBe(9603.36);
+    expect(sqlStats.payments.volume).toBe(9603.36);
+  });
 });
 
 describe("أدابتر Postgres — الدفع (آخر 4 أرقام بس)", () => {
@@ -233,7 +249,7 @@ describe("buildOverview — SQL aggregates = نفس أرقام حساب الذا
     expect(fromSql).toEqual(fromMemory);
 
     // ومطابقة صريحة للأرقام (مش مجرد «الاتنين زي بعض»)
-    expect(fromSql.revenue).toEqual({ total: 18570, today: 2870, week: 18570, avgOrder: 6190, vat: Math.round((18570 * 14) / 114) });
+    expect(fromSql.revenue).toEqual({ total: 18570, today: 2870, week: 18570, avgOrder: 6190, vat: 2280.53 });
     expect(fromSql.orders).toMatchObject({ total: 3, today: 1, active: 2 });
     expect(fromSql.orders.byCycle).toEqual({ quarterly: 1, yearly: 1, monthly: 1 });
     expect(fromSql.orders.byPayment).toEqual({ card: 1, wallet: 1, cash: 1 });
@@ -278,6 +294,18 @@ describe("buildOverview — SQL aggregates = نفس أرقام حساب الذا
 });
 
 describe("اختيار الدرايفر من شكل الـ DATABASE_URL", () => {
+  it("POSTGRES_URL يشتغل لو DATABASE_URL موجود لكنه فاضي", () => {
+    try {
+      vi.stubEnv("DATABASE_URL", "");
+      vi.stubEnv("POSTGRES_URL", "postgresql://u:p@db.example.test/gym");
+      expect(databaseUrl()).toBe("postgresql://u:p@db.example.test/gym");
+      vi.stubEnv("DATABASE_URL", "postgresql://override:pass@db.example.test/gym");
+      expect(databaseUrl()).toBe("postgresql://override:pass@db.example.test/gym");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   const NEON = "postgresql://user:pass@ep-cool-block-123-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require";
   const SUPA_POOLER = "postgresql://postgres.abcdefgh:pass@aws-0-eu-central-1.pooler.supabase.com:6543/postgres";
   const SUPA_DIRECT = "postgresql://postgres:pass@db.abcdefgh.supabase.co:5432/postgres";
@@ -343,6 +371,15 @@ describe("الـ seam — نفس الـ Route Handlers شغالة فوق Postgre
     expect(o.orders.total).toBe(1);
     expect(o.bookings.total).toBe(1);
     expect(o.payments.succeeded).toBe(1);
+  });
+
+  it("مسح وضع التجربة لا يحذف صفوف Postgres حتى لو الدفع sandbox", async () => {
+    await repo.addOrder(order({ orderId: "FZ-KEEP" }));
+    const res = await adminReset(new Request("http://local.test/api/admin/reset", {
+      method: "POST", headers: { cookie: `${ADMIN_COOKIE}=${await createSessionToken()}` },
+    }));
+    expect(res.status).toBe(403);
+    expect((await repo.listOrders()).map((o) => o.orderId)).toEqual(["FZ-KEEP"]);
   });
 
   it("من غير DATABASE_URL بيرجع لأدابتر الذاكرة (صفر إعداد)", async () => {

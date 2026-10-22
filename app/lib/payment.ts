@@ -3,8 +3,8 @@
  * — فحص Luhn لرقم الكارت + معرفة الشبكة (Visa / Mastercard / mada / Amex)
  * — أرقام اختبار بتدي نتائج مختلفة (نجاح / رفض / رصيد غير كافٍ)
  * — خطوة تحقق 3-D Secure (OTP) قبل ما الطلب يخلص
- * للتحويل لبوابة حقيقية: حط NEXT_PUBLIC_PAYMENT_PROVIDER=haystack|paymob|stripe
- * وبدّل جسم authorize() بنداء الـ API بتاعهم — باقي الكود في مكانه.
+ * الربط الحقيقي لازم يتم من السيرفر ببيانات اعتماد سرية والتحقق من نجاح الدفع
+ * قبل التفعيل. مجرد تغيير متغير بيئة في المتصفح لا يفعّل بوابة فعلية.
  */
 export type CardBrand = "visa" | "mastercard" | "amex" | "mada" | "unknown";
 
@@ -19,10 +19,11 @@ export type PayResult = {
   amount: number;
 };
 
-import { apiFetch, ENDPOINTS, HAS_EXTERNAL_BACKEND } from "./api";
+import { apiFetch, ENDPOINTS } from "./api";
 
-export const PROVIDER = process.env.NEXT_PUBLIC_PAYMENT_PROVIDER ?? "sandbox";
-export const IS_SANDBOX = PROVIDER === "sandbox" || !process.env.NEXT_PUBLIC_PAYMENT_SECRET;
+// The built-in payment routes only simulate a bank. An env var alone never enables real charges.
+export const PROVIDER = "sandbox";
+export const IS_SANDBOX = true;
 
 const digits = (v: string) => v.replace(/\D/g, "");
 
@@ -46,10 +47,10 @@ export function luhnValid(value: string): boolean {
 
 export function detectBrand(value: string): CardBrand {
   const n = digits(value);
+  if (/^(5080|5043|9201|5852|4292)/.test(n)) return "mada";
   if (/^4/.test(n)) return "visa";
   if (/^(5[1-5]|2[2-7])/.test(n)) return "mastercard";
   if (/^3[47]/.test(n)) return "amex";
-  if (/^(5080|5043|9201|5852|4292)/.test(n)) return "mada";
   return "unknown";
 }
 
@@ -98,72 +99,44 @@ export const TEST_CARDS = [
   { number: "5555 5555 5555 4444", result: "Mastercard — نجاح", tone: "ok" as const },
 ];
 
-const DECLINE: Record<string, { message: string }> = {
-  "4000000000000002": { message: "البنك رفض الكارت (card_declined) — جرّب كارت تاني" },
-  "4000000000009995": { message: "الرصيد غير كافٍ (insufficient_funds)" },
-  "4000000000009987": { message: "البطاقة محتاجة تحديث (expired_card)" },
-};
-
 export const OTP_HINT = "في وضع التجربة: أي 6 أرقام تنفع، و000000 بيرمّي خطأ رمز غلط";
 
-function ref(prefix = "pi") {
-  return `${prefix}_s1_${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36).slice(-4)}`;
+const paymentError = (message: string, reference = "", amount = 0): PayResult => ({
+  ok: false, status: "failed", reference, provider: PROVIDER, message, amount,
+});
+
+function validPaymentResponse(data: PayResult | null): data is PayResult {
+  return data !== null && typeof data.ok === "boolean" &&
+    ["succeeded", "requires_action", "failed"].includes(data.status) &&
+    typeof data.reference === "string" && data.reference.length > 0 &&
+    typeof data.message === "string";
 }
 
-/**
- * authorize: بيتكلم على /api/pay الأول، ولو السيرفر مش متاح (أوفلاين/ريستارت)
- * بينفّذ نفس المنطق محلياً عشان الديمو يفضل شغال.
- */
+/** An HTTP/JSON failure must never turn into a simulated successful charge. */
 export async function authorize(input: {
   method: PayMethod;
   amount: number;
   card?: CardFields;
   description?: string;
 }): Promise<PayResult> {
-  const local = simulate(input);
   const res = await apiFetch<PayResult>(ENDPOINTS.pay, {
     method: "POST",
     body: { ...input, provider: PROVIDER },
   });
-  // 200 = مقبول · 402 = البنك رفض — الاتنين قرار البنك في الرسالة
-  if (res.ok || res.status === 402) return { ...(res.data as PayResult), provider: res.data?.provider ?? PROVIDER };
-  if (HAS_EXTERNAL_BACKEND) return { ...local, message: res.error ?? local.message };
-  return local;
+  // 200 = accepted; 402 = a real bank decline with a useful explanation.
+  if ((res.ok || res.status === 402) && validPaymentResponse(res.data) && res.data.ok === res.ok &&
+      typeof res.data.amount === "number" && Number.isFinite(res.data.amount)) {
+    return { ...res.data, provider: res.data.provider ?? PROVIDER };
+  }
+  return paymentError(res.error ?? "رد غير صالح من سيرفر الدفع — حاول تاني", "", input.amount);
 }
 
-/** تأكيد 3-D Secure (الـ OTP) */
+/** تأكيد 3-D Secure (الـ OTP). Invalid codes stay retryable, outages do not count as success. */
 export async function confirmPayment(reference: string, code: string): Promise<PayResult> {
   const res = await apiFetch<PayResult>(ENDPOINTS.payConfirm, { method: "POST", body: { reference, code } });
-  if (res.ok || res.status === 401 || res.status === 404) {
-    if (res.data) return res.data;
-    return { ok: res.ok, status: res.ok ? "succeeded" : "failed", reference, provider: PROVIDER, message: res.error ?? "تم", amount: 0 };
+  if ((res.ok || [401, 402, 404].includes(res.status)) && validPaymentResponse(res.data) && res.data.ok === res.ok &&
+      (!res.ok || (typeof res.data.amount === "number" && Number.isFinite(res.data.amount)))) {
+    return { ...res.data, reference, amount: res.data.amount ?? 0, provider: res.data.provider ?? PROVIDER };
   }
-  const ok = /^\d{6}$/.test(code) && code !== "000000";
-  return {
-    ok,
-    status: ok ? "succeeded" : "failed",
-    reference,
-    provider: PROVIDER,
-    message: ok ? "تم التحقق من البنك بنجاح" : "رمز التحقق غير صحيح — راجع الرسالة المصرفية",
-    amount: 0,
-  };
-}
-
-function simulate({ method, amount, card }: { method: PayMethod; amount: number; card?: CardFields }): PayResult {
-  const reference = ref();
-  if (method !== "card") {
-    return { ok: true, status: "succeeded", reference, provider: PROVIDER, message: "تم تأكيد الطلب — الدفع عند الاستلام/المحفظة", amount };
-  }
-  const n = digits(card?.number ?? "");
-  const decline = DECLINE[n];
-  if (decline) return { ok: false, status: "failed", reference, provider: PROVIDER, message: decline.message, amount };
-  if (!luhnValid(n)) return { ok: false, status: "failed", reference, provider: PROVIDER, message: "رقم البطاقة مافيش ليه وجود في السجل (Luhn فشل)", amount };
-  return {
-    ok: true,
-    status: "requires_action",
-    reference,
-    provider: PROVIDER,
-    message: "البنك طلب تحقق إضافي (3-D Secure) — ادخل الرمز",
-    amount,
-  };
+  return paymentError(res.error ?? "تعذّر تأكيد العملية مع البنك — حاول تاني", reference);
 }

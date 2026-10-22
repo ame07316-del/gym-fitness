@@ -1,5 +1,15 @@
 import { EG_PHONE_RE } from "@/app/lib/utils";
 
+/** JSON request body must be an object — `null` and arrays parse successfully but aren't usable payloads. */
+export async function readJsonObject(request: Request): Promise<Record<string, unknown> | null> {
+  try {
+    const body: unknown = await request.json();
+    return body !== null && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
 /** قص وتنظيف نص جاي من الطلب */
 export const clean = (v: unknown, max = 120) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 

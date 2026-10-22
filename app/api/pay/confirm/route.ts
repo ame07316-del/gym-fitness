@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
 import { getRepo } from "@/app/lib/server/db";
+import { readJsonObject } from "@/app/lib/server/validate";
 
 export const dynamic = "force-dynamic";
 
 /** تأكيد 3-D Secure للعملية المعلقة (نفس شكل confirm في Stripe/Paymob) */
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "JSON غير صالح" }, { status: 400 });
-  }
+  const body = await readJsonObject(request);
+  if (!body) return NextResponse.json({ error: "JSON غير صالح" }, { status: 400 });
 
   const reference = typeof body.reference === "string" ? body.reference : "";
   const code = typeof body.code === "string" ? body.code.trim() : "";
@@ -26,6 +23,12 @@ export async function POST(request: Request) {
   if (intent.status === "succeeded") {
     return NextResponse.json({ ok: true, status: "succeeded", reference, amount: intent.amount, message: "العملية متأكد عليها بالفعل" });
   }
+  if (intent.status === "failed") {
+    return NextResponse.json(
+      { ok: false, status: "failed", reference, amount: intent.amount, message: "البنك رفض العملية — ابدأ الدفع من جديد" },
+      { status: 402 },
+    );
+  }
   if (!/^\d{6}$/.test(code) || code === "000000") {
     return NextResponse.json(
       { ok: false, status: "requires_action", reference, message: "رمز التحقق غير صحيح — هيوصلك رمز تاني على رسالتك البنكية" },
@@ -40,7 +43,7 @@ export async function POST(request: Request) {
     code: "succeeded",
     reference,
     amount: intent.amount,
-    provider: process.env.NEXT_PUBLIC_PAYMENT_PROVIDER ?? "sandbox",
+    provider: "sandbox",
     message: "تم التحقق من البنك واعتمدت العملية ✅",
   });
 }

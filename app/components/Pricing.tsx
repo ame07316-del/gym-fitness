@@ -356,7 +356,7 @@ export default function Pricing() {
                         <span className="text-base">ج.م</span>
                       </div>
                       <div className="num mt-1 text-[11px] text-white/45">
-                        = {Math.round(quote.perMonth)} ج.م / شهر
+                        = {egp(quote.perMonth)} / شهر
                       </div>
                     </div>
                   </div>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRepo, type BookingRecord } from "@/app/lib/server/db";
-import { clean, validateBooking } from "@/app/lib/server/validate";
+import { clean, readJsonObject, validateBooking } from "@/app/lib/server/validate";
 import { requireAdmin } from "@/app/lib/server/admin-guard";
 
 export const dynamic = "force-dynamic";
@@ -19,12 +19,8 @@ export type { BookingRecord };
 const newBookingId = () => `BK-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
 
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "JSON غير صالح" }, { status: 400 });
-  }
+  const body = await readJsonObject(request);
+  if (!body) return NextResponse.json({ error: "JSON غير صالح" }, { status: 400 });
 
   const { name, phone, goal, errors } = validateBooking(body);
   if (Object.keys(errors).length) {

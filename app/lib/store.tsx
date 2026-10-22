@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { useClock, useHydrated, usePersistentState } from "./storage";
 import { addMonths, quoteOf, type Draft, type Membership } from "./subscription";
 import { FREEZE_DAYS_LIMIT } from "./data";
@@ -28,7 +28,7 @@ type Ctx = {
   memberUiReady: boolean;
   daysLeft: number;
   progress: number;
-  confirmSubscription: (m: Omit<Membership, "orderId" | "startedAt" | "endsAt" | "status" | "autoRenew" | "frozenAt" | "frozenDaysUsed">) => Promise<Membership | null>;
+  confirmSubscription: (m: Omit<Membership, "orderId" | "startedAt" | "endsAt" | "status" | "autoRenew" | "frozenAt" | "frozenDaysUsed">, orderId?: string, onValidationError?: (fields: Record<string, string>) => void) => Promise<Membership | null>;
   renew: () => void;
   toggleFreeze: () => void;
   cancelMembership: () => void;
@@ -53,11 +53,13 @@ type Ctx = {
   favorites: string[];
   toggleFavorite: (id: string) => void;
   myClasses: string[];
+  waitlist: string[];
   toggleClass: (key: string, label: string) => void;
+  toggleWaitlist: (key: string, label: string) => void;
   seats: Record<string, number>;
   bookSeat: (key: string, name: string) => void;
   bookings: Booking[];
-  addBooking: (b: Omit<Booking, "id" | "createdAt" | "status">) => Promise<Booking | null>;
+  addBooking: (b: Omit<Booking, "id" | "createdAt" | "status">, onValidationError?: (fields: Record<string, string>) => void) => Promise<Booking | null>;
   removeBooking: (id: string) => void;
 
   /* تعبئة نموذج الحجز من أي مكان في الموقع */
@@ -77,6 +79,7 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
   const { value: history, setValue: setHistory } = usePersistentState<Membership[]>("fz.history.v1", []);
   const { value: favStored, setValue: setFav } = usePersistentState<string[]>("fz.favs.v1", []);
   const { value: classesStored, setValue: setClasses } = usePersistentState<string[]>("fz.classes.v1", []);
+  const { value: waitlist, setValue: setWaitlist } = usePersistentState<string[]>("fz.waitlist.v1", []);
   const { value: seatsStored, setValue: setSeats } = usePersistentState<Record<string, number>>("fz.seats.v1", {});
   const { value: bookingsStored, setValue: setBookings } = usePersistentState<Booking[]>("fz.bookings.v1", []);
   const hydrated = useHydrated();
@@ -85,15 +88,17 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
   const [draft, setDraft] = useState<Draft>(DEFAULT_DRAFT);
   const [panelOpen, setPanelOpen] = useState(false);
   const [checkout, setCheckout] = useState<Checkout>({ open: false, step: 0 });
-  const [seatsLocal, setSeatsLocal] = useState<Record<string, number>>({});
+  // Seat deltas are local-only (sandbox); localStorage notifies all mounted views immediately.
+  const reservedKeysRef = useRef(new Set<string>());
 
   const quote = useMemo(() => quoteOf(draft), [draft]);
 
   /* حالة العضوية الحية: انتهاء / أيام متبقية */
   const effectiveStatus = useMemo(() => {
     if (!membership) return null;
-    if (membership.status === "cancelled") return "cancelled" as const;
     if (membership.status === "expired" || (nowMs > 0 && membership.endsAt < nowMs)) return "expired" as const;
+    // Old local records marked cancelled on disabling auto-renew. Paid access remains until endsAt.
+    if (membership.status === "cancelled" && nowMs > 0) return "active" as const;
     return membership.status;
   }, [membership, nowMs]);
 
@@ -110,8 +115,8 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const closeCheckout = useCallback(() => {
+    // Keep the chosen plan/add-ons/coupon if someone closes the dialog to review pricing.
     setCheckout((c) => ({ ...c, open: false }));
-    setDraft(DEFAULT_DRAFT);
   }, []);
   const setCheckoutStep = useCallback((n: number) => setCheckout((c) => ({ ...c, step: n })), []);
 
@@ -120,10 +125,10 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const confirmSubscription: Ctx["confirmSubscription"] = useCallback(
-    async (base) => {
+    async (base, orderId, onValidationError) => {
       const rec: Membership = {
         ...base,
-        orderId: uid("FZ"),
+        orderId: orderId ?? uid("FZ"),
         startedAt: Date.now(),
         endsAt: addMonths(Date.now(), base.months),
         status: "active",
@@ -131,14 +136,17 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
         frozenAt: null,
         frozenDaysUsed: 0,
       };
-      const res = await apiFetch<{ order?: { orderId?: string }; invoice?: string }>(ENDPOINTS.subscribe, { method: "POST", body: rec });
-      if (!res.ok) {
+      const res = await apiFetch<{ ok?: boolean; order?: { orderId?: string }; invoice?: string }>(ENDPOINTS.subscribe, { method: "POST", body: rec });
+      if (!res.ok || res.data?.ok !== true) {
+        if (res.fields) onValidationError?.(res.fields);
         toast({
-          kind: "warn",
-          title: "الاشتراك اتسجّل على جهازك",
-          body: res.error ? `${res.error} — بياناتك محفوظة ومعاهالك مرجع الطلب ${rec.orderId}.` : "الباك إند مش متاح دلوقتي.",
+          kind: "error",
+          title: "تعذّر تسجيل الاشتراك",
+          body: `${res.error ?? "السيرفر مش متاح"} — جرّب تاني برقم الطلب ${rec.orderId}.`,
         });
-      } else if (res.data?.invoice) {
+        return null;
+      }
+      if (res.data?.invoice) {
         toast({ kind: "info", title: `فاتورة ${res.data.invoice}`, body: "هنبعتهالك على الواتساب بعد تأكيد الدفع." });
       }
       setMembership(rec);
@@ -159,15 +167,20 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
   const toggleFreeze = useCallback(() => {
     if (!membership) return;
     if (membership.status === "frozen") {
-      const days = daysBetween(membership.frozenAt ?? Date.now(), Date.now());
+      const remaining = Math.max(0, FREEZE_DAYS_LIMIT - membership.frozenDaysUsed);
+      const days = Math.min(remaining, daysBetween(membership.frozenAt ?? Date.now(), Date.now()));
       setMembership({
         ...membership,
         status: "active",
         frozenAt: null,
         frozenDaysUsed: membership.frozenDaysUsed + days,
-        endsAt: addMonths(membership.endsAt, 0) + days * 86_400_000,
+        endsAt: membership.endsAt + days * 86_400_000,
       });
       toast({ kind: "info", title: "العضوية رجعت نشطة", body: `اتمدّد الاشتراك ${days} يوم تعويضاً.` });
+      return;
+    }
+    if (membership.endsAt <= Date.now()) {
+      toast({ kind: "error", title: "العضوية منتهية", body: "جدّد اشتراكك قبل طلب التجميد." });
       return;
     }
     const left = FREEZE_DAYS_LIMIT - membership.frozenDaysUsed;
@@ -180,8 +193,8 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
   }, [membership, setMembership, toast]);
 
   const cancelMembership = useCallback(() => {
-    if (!membership) return;
-    setMembership({ ...membership, status: "cancelled", autoRenew: false });
+    if (!membership || !membership.autoRenew) return;
+    setMembership({ ...membership, autoRenew: false });
     toast({ kind: "warn", title: "تم إلغاء التجديد التلقائي", body: "العضوية هتفضل شغالة لحد نهاية الفترة المدفوعة." });
   }, [membership, setMembership, toast]);
 
@@ -203,43 +216,51 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
 
   const toggleClass = useCallback(
     (key: string, label: string) => {
-      setClasses((c) => {
-        const has = c.includes(key);
-        toast(
-          has
-            ? { kind: "info", title: "اتشالت من جدولك", body: label }
-            : { kind: "success", title: "اتضافت لجدولك", body: label },
-        );
-        return has ? c.filter((x) => x !== key) : [...c, key];
-      });
+      if (!classesStored.includes(key)) return;
+      setClasses((c) => c.filter((x) => x !== key));
+      setSeats((s) => ({ ...s, [key]: Math.max(0, (s[key] ?? 0) - 1) }));
+      reservedKeysRef.current.delete(key);
+      toast({ kind: "info", title: "اتشال من جدولك على الجهاز", body: label });
     },
-    [setClasses, toast],
+    [classesStored, setClasses, setSeats, toast],
+  );
+
+  const toggleWaitlist = useCallback(
+    (key: string, label: string) => {
+      const waiting = waitlist.includes(key);
+      setWaitlist((w) => waiting ? w.filter((x) => x !== key) : [...w, key]);
+      toast({ kind: "info", title: waiting ? "اتشلت من قائمة الانتظار" : "اتضافت لقائمة الانتظار على جهازك", body: label });
+    },
+    [waitlist, setWaitlist, toast],
   );
 
   const bookSeat = useCallback(
     (key: string, name: string) => {
-      const next = (seatsLocal[key] ?? 0) + 1;
-      setSeatsLocal((s) => ({ ...s, [key]: next }));
-      setSeats((s) => ({ ...s, [key]: next }));
+      if (classesStored.includes(key) || reservedKeysRef.current.has(key)) return;
+      reservedKeysRef.current.add(key);
+      // Only guard repeated clicks in the same event turn; another tab can cancel later.
+      queueMicrotask(() => reservedKeysRef.current.delete(key));
+      setSeats((s) => ({ ...s, [key]: (s[key] ?? 0) + 1 }));
       setClasses((c) => (c.includes(key) ? c : [...c, key]));
-      toast({ kind: "success", title: "حجزنا لك مكان 👌", body: name });
+      toast({ kind: "success", title: "اتحفظ الحجز التجريبي على جهازك", body: `${name} — تأكد من الفرع قبل الموعد.` });
     },
-    [seatsLocal, setSeats, setClasses, toast],
+    [classesStored, setSeats, setClasses, toast],
   );
 
   const addBooking: Ctx["addBooking"] = useCallback(
-    async (b) => {
+    async (b, onValidationError) => {
       const rec: Booking = { ...b, id: uid("BK"), createdAt: Date.now(), status: "pending" };
-      const res = await apiFetch<{ booking?: { id?: string }; message?: string }>(ENDPOINTS.bookings, { method: "POST", body: rec });
-      if (res.ok) {
-        rec.status = "confirmed";
-      } else {
+      const res = await apiFetch<{ ok?: boolean; booking?: { id?: string }; message?: string }>(ENDPOINTS.bookings, { method: "POST", body: rec });
+      if (!res.ok || res.data?.ok !== true) {
+        if (res.fields) onValidationError?.(res.fields);
         toast({
-          kind: "warn",
-          title: "طلبك اتسجّل على جهازك",
-          body: res.error ?? "الباك إند مش متاح — هنتابع معاك على الواتساب.",
+          kind: "error",
+          title: "طلب الحجز ما اتبعتش",
+          body: res.error ?? "السيرفر مش متاح — جرّب تاني بعد شوية.",
         });
+        return null;
       }
+      rec.status = "confirmed";
       setBookings((s) => [rec, ...s].slice(0, 20));
       toast({ kind: "success", title: "تم إرسال طلب الحجز ✅", body: `الكود: ${rec.id}` });
       return rec;
@@ -250,12 +271,10 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
   const removeBooking = useCallback(
     (id: string) => {
       setBookings((s) => s.filter((b) => b.id !== id));
-      toast({ kind: "info", title: "اتلغى الحجز" });
+      toast({ kind: "info", title: "اتشال طلب الحجز من جهازك", body: "لإلغاء الحجز عند الجيم، تواصل مع الفرع." });
     },
     [setBookings, toast],
   );
-
-  const seats = useMemo(() => ({ ...seatsStored, ...seatsLocal }), [seatsStored, seatsLocal]);
 
   /** يطلب تعبئة فورم الحجز (عن طريق حدث DOM — من غير setState وقت الرسم) */
   const requestBooking = useCallback((p: { goal?: string; trainer?: string }, scrollTo = true) => {
@@ -291,8 +310,10 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
     favorites: favStored,
     toggleFavorite,
     myClasses: classesStored,
+    waitlist,
     toggleClass,
-    seats,
+    toggleWaitlist,
+    seats: seatsStored,
     bookSeat,
     bookings: bookingsStored,
     addBooking,
